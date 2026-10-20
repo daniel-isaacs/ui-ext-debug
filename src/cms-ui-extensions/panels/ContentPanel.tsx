@@ -54,7 +54,7 @@ export function ContentPanel({events}: {events: ContentEvent[]}) {
             'The first entry comes from get() when the extension loads; the rest from subscribe(). Each entry has key, version, locale and public URL, but no status.',
           report: '"Copy events" below, plus a line saying what you did between the entries.',
           found:
-            'Events on navigation, "Ready to publish", "Publish" and the first edit after a publish (new version). None for edits inside a draft. After a reload the content stays empty until you navigate.'
+            'Events on navigation (pages, older versions and blocks), "Ready to publish", "Publish" and the first edit after a publish (new version). None for edits inside a draft. Blocks have no public URL. After a full reload, get() and the first subscribe() event are both null until you navigate (CMS bug).'
         }}
       >
         <Group gap="8" flexWrap="wrap">

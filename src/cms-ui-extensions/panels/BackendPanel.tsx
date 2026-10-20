@@ -44,13 +44,15 @@ export function BackendPanel() {
           steps: [
             'Echo: the request comes back unchanged.',
             `Return N KB with 256, then 1024, then ${MAX_PAYLOAD_KB}. Note where it fails.`,
-            'Sleep N ms with 3000, then 30000, then 55000. The SDK gives up at 60 s; does the CMS give up sooner?',
+            'Sleep N ms with 3000, 30000 and 55000, then 65000 to see what the SDK\'s 60 s timeout looks like. Afterwards, check the server logs: did the function still finish?',
             'Return HTTP status with 418, then 500.',
-            'Throw.',
+            'Throw (caught), then Throw (uncaught): the first is turned into a 500 by this function, the second escapes perform().',
             'OCP notification, then check where (if anywhere) it shows up.'
           ],
           expect:
-            'Echo returns æøå 🐞 intact. Large payloads and long sleeps succeed up to some limit. A thrown error arrives as HTTP 500 with an empty body.',
+            'Echo returns æøå 🐞 intact. Large payloads and long sleeps succeed up to some limit. Any status and body the function returns arrives unchanged. An uncaught exception is expected to arrive as HTTP 500 with an empty body.',
+          found:
+            'Responses up to just under 4 MiB work; 4096 KB fails with "Failed to invoke function:". 55 s sleeps work. 418 and a caught 500 arrive with their JSON body. Overhead is 200 to 650 ms per call.',
           report: 'For each test: the badges (HTTP status, round trip) and the first lines of the result. The Copy button gives the whole thing.'
         }}
       >
@@ -71,7 +73,10 @@ export function BackendPanel() {
           <Input value={status} onChange={(event) => setStatus(event.target.value)} style={{width: 90}} />
           <Button onClick={() => void tests.run('error', {status: Number(status)})}>Return HTTP status</Button>
           <Button appearance="danger" onClick={() => void tests.run('error', {mode: 'throw'})}>
-            Throw
+            Throw (caught)
+          </Button>
+          <Button appearance="danger" onClick={() => void tests.run('error', {mode: 'uncaught'})}>
+            Throw (uncaught)
           </Button>
         </Group>
         <OutcomeView outcome={tests.outcome} loading={tests.loading} />

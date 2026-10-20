@@ -8,7 +8,7 @@ export const DEFAULT_GRAPH_ENDPOINT = 'https://cg.optimizely.com/content/v2';
 export const LOG_PREFIX = '[UXD]';
 
 /** Upper bounds for the backend test actions. */
-export const MAX_SLEEP_MS = 55_000;
+export const MAX_SLEEP_MS = 70_000;
 export const MAX_PAYLOAD_KB = 4096;
 export const MAX_PROXY_BODY_CHARS = 200_000;
 export const INBOX_LIMIT = 25;

@@ -3,7 +3,7 @@ import type {PropertySetResult, PropertyState} from '@optimizely/cms-extensibili
 import {useEffect, useState} from 'react';
 import {useDebug} from '../common/debugContext';
 import {logGroup} from '../common/log';
-import {JsonView, Section} from '../common/ui';
+import {Bordered, CopyButton, Facts, JsonView, Section} from '../common/ui';
 
 interface PropertyEvent {
   at: string;
@@ -11,8 +11,19 @@ interface PropertyEvent {
   state: PropertyState;
 }
 
+function typeOf(value: unknown): string {
+  if (value === null) return 'null';
+  if (Array.isArray(value)) return `array (${value.length})`;
+  return typeof value;
+}
+
+function preview(value: unknown): string {
+  const text = typeof value === 'string' ? JSON.stringify(value) : JSON.stringify(value) ?? String(value);
+  return text.length > 120 ? `${text.slice(0, 120)}…` : text;
+}
+
 export function PropertyPanel() {
-  const {context} = useDebug();
+  const {context, content} = useDebug();
   const [events, setEvents] = useState<PropertyEvent[]>([]);
   const [raw, setRaw] = useState('');
   const [setResult, setSetResult] = useState<PropertySetResult | string | null>(null);
@@ -36,6 +47,8 @@ export function PropertyPanel() {
   }, [context]);
 
   const latest = events[0]?.state;
+  const settings = latest?.settings;
+  const settingsEntries = settings ? Object.entries(settings) : [];
 
   const writeRaw = async () => {
     let value: unknown = raw;
@@ -55,21 +68,89 @@ export function PropertyPanel() {
 
   return (
     <Group flexDirection="column" gap="16">
-      <Section title="Property state" hint="value, readonly and settings from context.property, newest first.">
-        {latest && (
-          <Text fontSize="sm">
-            Value type: <b>{latest.value === null ? 'null' : typeof latest.value}</b> · readonly:{' '}
-            <b>{String(latest.readonly)}</b> · settings keys: <b>{Object.keys(latest.settings ?? {}).join(', ') || 'none'}</b>
+      <Section
+        title="Page context"
+        guide={{
+          why: 'A property editor also knows which content it belongs to, from context.content, the same as the sidebar.',
+          expect: 'Key, version, locale and public URL of the content being edited.',
+          found:
+            'Property editors get the page context and can call the backend through invokeFunction, the same as the sidebar.'
+        }}
+      >
+        <Bordered>
+          <Facts
+            rows={[
+              ['Key', content?.key],
+              ['Version', content?.version],
+              ['Locale', content?.locale],
+              ['Public URL', content?.publicUrl]
+            ]}
+          />
+        </Bordered>
+      </Section>
+
+      <Section
+        title="PropertyState"
+        guide={{
+          why: 'Everything the CMS tells the editor about its property: the value, whether it may be changed, and optional settings.',
+          steps: ['Open content with a property that uses this editor.', 'Compare a new property with one that has a value.'],
+          expect: 'value matches the property type (a string here), readonly is false unless the content is locked or published.',
+          report: '"Copy state".'
+        }}
+      >
+        {latest ? (
+          <>
+            <Bordered>
+              <Facts
+                rows={[
+                  ['value type', typeOf(latest.value)],
+                  ['readonly', String(latest.readonly)],
+                  ['settings', settings === undefined ? 'undefined (not sent)' : `${typeOf(settings)}, ${settingsEntries.length} keys`]
+                ]}
+              />
+            </Bordered>
+            <JsonView title="Latest PropertyState" value={latest} maxHeight={200} />
+          </>
+        ) : (
+          <Text color="fg.secondary">No PropertyState yet.</Text>
+        )}
+      </Section>
+
+      <Section
+        title="settings"
+        guide={{
+          why: 'PropertyState.settings is typed as Record<string, unknown> and isn\'t documented. It may carry the property\'s configuration from the content type (length limits, required, allowed values).',
+          steps: [
+            'Look at the keys below.',
+            'Change the property\'s settings in CMS Settings → Content Types (required, help text, limits), reload, and compare.'
+          ],
+          expect: 'Unknown. That is what this section is for.',
+          report: '"Copy settings", plus what you changed in the content type.'
+        }}
+      >
+        {settingsEntries.length > 0 ? (
+          <>
+            <Bordered>
+              <Facts rows={settingsEntries.map(([key, value]) => [key, `${typeOf(value)}: ${preview(value)}`])} />
+            </Bordered>
+            <CopyButton value={settings} label="Copy settings" />
+          </>
+        ) : (
+          <Text color="fg.secondary" fontSize="sm">
+            {latest ? (settings === undefined ? 'The CMS sent no settings.' : 'settings is empty.') : 'Waiting for the property state.'}
           </Text>
         )}
-        {events.map((event, index) => (
-          <JsonView key={`${event.at}-${index}`} title={`${event.at.slice(11, 23)} ${event.source}`} value={event.state} maxHeight={200} />
-        ))}
       </Section>
 
       <Section
         title="Write a raw value"
-        hint="Sent to property.set() as parsed JSON, or as a string if it isn't JSON. Use this to see what the CMS accepts or rejects for this type."
+        guide={{
+          why: 'What the CMS accepts or rejects for this property type. The text is parsed as JSON, or sent as a string if it isn\'t JSON.',
+          steps: ['Try "text", 42, true and null.', 'Watch the editor above and the result below.'],
+          expect: 'Strings succeed. Other types should be rejected with an error.',
+          report: 'The set() result for each value.',
+          found: 'A successful set() saves the value, but the CMS sends no subscribe() event back. The editor updates its own input.'
+        }}
       >
         <Textarea value={raw} onChange={(event) => setRaw(event.target.value)} placeholder='"text", 42, true, null' />
         <Group gap="8">
@@ -78,6 +159,13 @@ export function PropertyPanel() {
           </Button>
         </Group>
         {setResult && <JsonView title="set() result" value={setResult} />}
+      </Section>
+
+      <Section title={`Property events (${events.length})`} hint="get() when the editor loads, then every subscribe() callback, newest first.">
+        <CopyButton value={events} label="Copy events" />
+        {events.map((event, index) => (
+          <JsonView key={`${event.at}-${index}`} title={`${event.at.slice(11, 23)} ${event.source}`} value={event.state} maxHeight={160} />
+        ))}
       </Section>
     </Group>
   );

@@ -114,7 +114,9 @@ export function BridgePanel() {
           ],
           expect:
             'extension.getDefinition and content.get return a result. Unknown methods return an error, or time out after 2 s if the host ignores them.',
-          report: '"Copy results" below. Note which surface you ran it in.'
+          report: '"Copy results" below. Note which surface you ran it in.',
+          found:
+            'Sidebar (dev.9): only extension.getDefinition, content.get and property.get answer; property.get is {readonly: true} there. Everything else is "Unknown method: <name>", with no list of supported methods.'
         }}
       >
         <Input value={method} onChange={(event) => setMethod(event.target.value)} placeholder="method name" />
@@ -156,7 +158,9 @@ export function BridgePanel() {
             'Look for CMS_EVENT entries in Traffic below.'
           ],
           expect: 'Only "content" produces events. Any other event that fires is a new finding.',
-          report: '"Copy traffic" in the Traffic section, with a note of what you did in the CMS.'
+          report: '"Copy traffic" in the Traffic section, with a note of what you did in the CMS.',
+          found:
+            'Unknown events are accepted without an error but never fire. Only content does: on pages, page versions and blocks (blocks have no publicUrl). Each content subscription gets the current state right away.'
         }}
       >
         <Group gap="8">

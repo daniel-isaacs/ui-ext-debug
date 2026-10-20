@@ -1,7 +1,7 @@
 meta:
   app_id: steve_ui_ext_debug
   display_name: UI Extension Debugger (Steve)
-  version: 1.0.0-dev.9
+  version: 1.0.0-dev.10
   vendor: optimizely
   summary: Shows everything a CMS UI extension can see, in every injection point, from the frontend and the backend.
   support_url: https://support.optimizely.com

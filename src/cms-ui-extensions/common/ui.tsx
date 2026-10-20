@@ -16,10 +16,20 @@ import {copyToClipboard} from './clipboard';
 import type {CallOutcome} from './debugContext';
 import {logGroup} from './log';
 
+/** Longer strings are cut in displays and copies, so payload tests stay readable and pasteable. */
+const MAX_SHOWN_STRING = 500;
+
+function shortenLongStrings(_key: string, value: unknown): unknown {
+  if (typeof value === 'string' && value.length > MAX_SHOWN_STRING) {
+    return `${value.slice(0, 80)}… [${value.length.toLocaleString('en')} chars, cut for display]`;
+  }
+  return value;
+}
+
 export function stringify(value: unknown): string {
   if (value === undefined) return 'undefined';
   try {
-    return JSON.stringify(value, null, 2);
+    return JSON.stringify(value, shortenLongStrings, 2);
   } catch {
     return String(value);
   }

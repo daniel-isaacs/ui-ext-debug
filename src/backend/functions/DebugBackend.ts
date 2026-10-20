@@ -47,6 +47,11 @@ export class DebugBackend extends App.Function {
     if (!ACTIONS.includes(action)) {
       return this.fail(400, 'unknown_action', `Unknown action "${action}". Known: ${ACTIONS.join(', ')}`);
     }
+    // Outside the try/catch below on purpose: shows what the platform does with an exception that
+    // escapes perform(), as opposed to the 500 envelope this function returns for caught errors.
+    if (action === 'error' && params.mode === 'uncaught') {
+      throw new Error('Uncaught on purpose by the debugger.');
+    }
 
     try {
       return await this.dispatch(action, params, body);
@@ -77,6 +82,8 @@ export class DebugBackend extends App.Function {
       case 'sleep': {
         const ms = Math.min(MAX_SLEEP_MS, Math.max(0, num(params.ms, 1000)));
         await new Promise((resolve) => setTimeout(resolve, ms));
+        // Shows in `ocp app logs` even when the extension has already given up (60 s SDK timeout).
+        logger.info('debug_backend sleep finished', `${ms} ms`, `invocation ${this.meta.invocation}`);
         return this.ok({sleptMs: ms});
       }
 

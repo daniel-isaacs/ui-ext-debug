@@ -28,9 +28,12 @@ const SECTIONS = [
   {value: 'env', label: 'Iframe', description: 'Sandbox tests, CSP violations, environment'}
 ];
 
-/** Property editors are field-sized, so they only get the sections about the bound property. */
+/**
+ * Property editors are field-sized, so they only get the property itself and their own bridge.
+ * Versions and backend tests live in the sidebar and view.
+ */
 const SECTIONS_BY_SURFACE: Record<Surface, string[]> = {
-  'property-editor': ['property', 'overview', 'content', 'bridge'],
+  'property-editor': ['property', 'bridge'],
   sidebar: ['overview', 'content', 'bridge', 'backend', 'cms', 'graph', 'inbox', 'env'],
   view: ['overview', 'content', 'bridge', 'backend', 'cms', 'graph', 'inbox', 'env']
 };
@@ -114,12 +117,16 @@ export function DebuggerApp({context, surface}: {context: ExtensionContext; surf
                   <PropertyPanel />
                 </TabsContent>
               )}
-              <TabsContent value="overview">
-                <OverviewPanel />
-              </TabsContent>
-              <TabsContent value="content">
-                <ContentPanel events={contentEvents} />
-              </TabsContent>
+              {shown.has('overview') && (
+                <>
+                  <TabsContent value="overview">
+                    <OverviewPanel />
+                  </TabsContent>
+                  <TabsContent value="content">
+                    <ContentPanel events={contentEvents} />
+                  </TabsContent>
+                </>
+              )}
               <TabsContent value="bridge">
                 <BridgePanel />
               </TabsContent>

@@ -24,14 +24,14 @@ content-related tests.
    differ, since that would be a CMS bug.
 3. **Iframe → CSP violations** should be 0, and the text should render in Roboto.
 
-## 1. Bridge: hidden host methods and events (5 min, no settings needed)
+## 1. Bridge: hidden host methods and events (done in the sidebar, 2026-10-20)
 
-1. **Bridge → Call any host method → "Try 14 guessed methods".** Run it in the sidebar and in
-   the view. **Collect:** "Copy results" from each.
-2. **Bridge → Subscribe to any event:**
-   1. Subscribe to every suggested name.
-   2. Then in the CMS: navigate, switch theme, switch language and select a block.
-   3. **Collect:** "Copy traffic".
+Done in the sidebar. Found only the SDK's methods, and only `content` events (see CLAUDE.md).
+Remaining:
+1. Run "Try 14 guessed methods" in the **view** and in a **property editor**. **Collect:** "Copy
+   results" from each.
+2. ~~Retest the reload bug.~~ Done 2026-10-20 19:02: still there. After F5, both `get()` and
+   `subscribe()` give `null` until you navigate.
 
 ## 2. Backend transport limits (10 min)
 
@@ -42,9 +42,10 @@ and the start of the result:
 | --- | --- | --- |
 | Echo | default | Does unicode survive? |
 | Return N KB | 256, 1024, 4096 | Where does it fail? |
-| Sleep N ms | 3000, 30000, 55000 | Does the CMS time out before the SDK's 60 s? |
+| Sleep N ms | ~~3000, 30000, 55000~~ (done: all pass), **65000** | What error does the extension get at the SDK's 60 s timeout? Does the function still finish (check `ocp app logs`)? |
 | Return HTTP status | 418, 500 | What reaches the extension? |
-| Throw | | Is it a 500 with an empty body? |
+| Throw (caught) | | Done: 500 with the JSON body (the function catches it) |
+| Throw (uncaught) | dev.10 | Is it a 500 with an empty body? Does the error text reach the extension? |
 | OCP notification | | Where does it show up, if anywhere? |
 
 ## 3. Shared state and lifecycle (3 min)

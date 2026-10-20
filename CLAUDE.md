@@ -99,13 +99,34 @@ the app as account-scoped (see the Unsplash repo's CLAUDE.md).
   load.**
 - **The sidebar's definition `type` is `"content"`, not `"sidebar"`.** The view's is `"view"`.
   The sidebar frame's referrer is `<cms-origin>/ui/cms`, and it's about 472 px wide.
-- **Content in the sidebar: `content.get()` returns the current content straight away. The
-  `content` subscription fires only on changes**, with no initial event. Use both: `get()`
-  for the first value and `subscribe()` for navigation. The state looks like
+- **Content in the sidebar: `content.get()` returns the current content straight away. Whether
+  `subscribe()` also sends it changed during the day.**
+  - Morning tests (dev.3): the subscription sent nothing at load, only on changes.
+  - Evening (dev.9, 18:28 UTC): every new `content` subscription got the current state about
+    20 ms after subscribing. That held for the SDK's at load and for a raw one added later.
+  - The CMS may have changed in between. Keep using both: `get()` for the first value and
+    `subscribe()` for changes, and ignore duplicates.
+
+  The state looks like
   `{key: "<32-hex, no dashes>", version: "472", locale: "en", publicUrl}`. `version` is a
   string, and it looks like a global version ID, not a per-item counter. `publicUrl` is the
   page's URL on the **front-end site** (e.g. `https://test.contentgurus.no/en/blog/…/`), so
   the extension does learn the site's host this way.
+- **The bridge offers only the SDK's methods.** The 14-method sweep (dev.9, sidebar) found
+  three that answer: `extension.getDefinition`, `content.get` and `property.get`. In the
+  sidebar, `property.get` returns `{readonly: true}` with no value: it isn't bound. Every guess
+  (`user.get`, `auth.getToken`, `theme.get`, `locale.get`, `content.getType` and more) returns
+  `CMS_ERROR "Unknown method: <name>"` within about 10 ms. The error text doesn't list the
+  supported methods.
+- **Unknown events are accepted silently and never fire.** Subscribing to `user`, `theme`,
+  `locale`, `selection`, `navigation` or `property` (in the sidebar) returns no error. None of
+  them sent an event while navigating pages, versions and blocks. Only `content` produces events.
+- **The `content` event follows whatever is selected, blocks included.**
+  - Selecting a block sends its `key`, `version` and `locale`, with **no `publicUrl`** (blocks
+    have no URL).
+  - Opening an older version of a page sends that version (469 → 346), so `version` is the
+    version being viewed, not the latest.
+  - Several subscriptions on one port each get every event (the SDK's id 4 and a raw one).
 - **The `content` event fires on version and status changes, not on edits.** Tested in the
   sidebar on one page:
   - Editing a property in an existing draft: no event. Autosave keeps the same version.
@@ -116,16 +137,23 @@ the app as account-scoped (see the Unsplash repo's CLAUDE.md).
   The payload has no status field, so the "ready to publish" and "publish" events are
   identical. To find out what changed, look the version up in the CMS REST API. The version
   jumped from 472 to 486 on one page, which confirms it's an instance-wide version ID.
-- **CMS bug: a sidebar that loads with the page never gets the content.** Switching locale
-  reloads the whole CMS page, extension frames included. F5 does the same.
-  - If the sidebar was already open when the page loaded, `content.get()` returns `null`
-    straight away. It still returned `null` when called again 18 s later.
-  - No `content` event arrives, however long you wait.
-  - Navigating to another item and back fixes it: both navigations send events.
-  - By contrast, opening the sidebar *after* the page has loaded gives the content straight
-    away.
+- **CMS bug: after a full page reload, extensions get no content until you navigate.**
+  Switching locale reloads the whole CMS page, extension frames included. F5 does the same.
+  - Morning (dev.3): with the sidebar open during the reload, `content.get()` returned `null`,
+    still `null` 18 s later, and no `content` event arrived.
+  - Evening retest (dev.9, 19:02 UTC): after F5 the CMS reopened the page with the sidebar
+    **closed**. Opening it then gave `get()` → `null` *and* an immediate `subscribe()` event →
+    `null`. So it's not about when the sidebar opens: the CMS itself has no current content
+    after a reload. The new immediate `subscribe()` event just repeats that `null`.
+  - Navigating to another item and back fixes it: both navigations send events. Confirmed again
+    on dev.9: about 8 minutes of `null`, then two events about 3.5 s apart, with the original
+    page last.
+  - Opening the sidebar after *navigating* (not reloading) gives the content straight away.
 
-  Extensions must handle `null` and should tell the user to reselect the content. Not reported to the CMS team yet.
+  Extensions must handle `null` and should tell the user to reselect the content. Not reported
+  to the CMS team yet.
+- **The CMS doesn't remember an open sidebar across a reload.** After F5 the page came back with
+  the sidebar closed.
 - **Locales share the content `key`, but each language has its own `version`.** The same key
   had `"en"` at version 486 and `"no"` at version 395. The Norwegian locale code is `no`, not
   `nb`.
@@ -159,6 +187,50 @@ the app as account-scoped (see the Unsplash repo's CLAUDE.md).
   use the app ID plus the entry point.
 - **The font fix works on the real CDN.** dev.5 has 0 CSP violations, so
   `bundles/<app>/<version>/assets/` is served.
+- **Transport tests (dev.9, sidebar, 2026-10-20):**
+  - **Echo:** the body arrives intact, including `æøå 🐞`, nested objects and arrays (425
+    bytes, content type `null`).
+    - **Object keys come back sorted alphabetically.** The client sent `action, params,
+      client`, and it came back as `action, client, params`; the content state's keys were
+      sorted too. The body is re-serialized on the way, so don't rely on key order. The same
+      sorting shows in whoami's manifest.
+  - **Return N KB:** 256 KB took 1,265 ms round trip, and 1,024 KB took 1,437 ms. The
+    function took 0 to 1 ms both times, and both arrived whole. A warm whoami (about 5 KB) takes
+    about 250 ms. So a large response costs about 1 s, plus a little per MB: the overhead is
+    mostly fixed, not proportional to size.
+    - **4,096 KB fails.** The extension gets a transport error from the CMS: `[ExtensionService]
+      Failed to invoke function:` (empty reason), with `payload: null`, after 1,338 ms. So the
+      response limit is between 1 MB and 4 MB.
+    - **4,000 KB works:** 4,096,000 bytes of data, 2,351 ms round trip. So the limit is between
+      about 4.0 MB and 4.2 MB, which fits a **4 MiB (4,194,304 bytes) response limit**, most
+      likely gRPC's default. Keep `invokeFunction` responses well under 4 MB, and page anything
+      larger. 4,090 KB would pin it down further; it's not needed.
+  - **Sleep N ms:**
+
+    | Sleep | Round trip | Function | Overhead |
+    | --- | --- | --- | --- |
+    | 3,000 ms | 3,599 ms | 3,002 ms | about 600 ms |
+    | 30,000 ms | 30,192 ms | 29,999 ms | about 190 ms |
+    | 55,000 ms | 55,638 ms | 55,005 ms | about 630 ms |
+
+    The CMS doesn't cut calls short: 55 s works, so the SDK's 60 s bridge timeout is the real
+    limit. Overhead is fixed, at about 200 to 650 ms per call, whatever the duration. Calls over
+    60 s are untested so far.
+  - **Return HTTP status:**
+    - **418:** reaches the extension unchanged. `statusCode` is 418, and the JSON body (the error
+      envelope) arrives whole. The call doesn't reject. Round trip 635 ms. So status codes and
+      error bodies a function sets on purpose pass straight through.
+    - **500:** the same. The returned 500 keeps its JSON body (`requested_error`), so the CMS
+      doesn't replace 5xx bodies either.
+    - **Throw (caught):** HTTP 500 with the JSON body, in 545 ms. This doesn't test an uncaught
+      exception: `DebugBackend.perform()` catches errors and returns its own 500 envelope. It
+      only shows that a returned 500 also keeps its body. From dev.10, "Throw (uncaught)"
+      throws before the try/catch, to test the claim in the known-facts section (500 with an
+      empty body). From dev.10 the cap (`MAX_SLEEP_MS`) is 70 s, so 65 s shows the
+    SDK timeout and whether the function still finishes. The debugger now cuts strings over 500 characters in displays and
+    copies, so results stay pasteable.
+    - The container had started 85 s earlier than the echo call (19:13:07). The 18:28 container
+      was gone after about 45 minutes, so containers are recycled or scaled down quickly.
 - **A warm `invokeFunction` call takes about 260 ms round trip**, when the function itself runs
   in about 28 ms. One container served both the view and the sidebar.
 - The first whoami of each surface sends `client.content: null`, even in the sidebar. It's sent
@@ -181,8 +253,9 @@ the app as account-scoped (see the Unsplash repo's CLAUDE.md).
 `common/ui.tsx`) has the same steps and a short "Found" line. Update both when a question is
 answered.
 
-1. Which host methods exist beyond the SDK's six? Does the error text for an unknown method list
-   them? (Bridge → "Try 14 guessed methods")
+1. Answered: no host methods beyond the SDK's, and no events beyond `content` (see above). Still
+   open: run the sweep inside a property editor and in the view, and retest the null-content
+   bug now that `subscribe()` seems to send the current state.
 2. Do headers reach `debug_webhook` normally? This is expected, since it's a plain HTTP function.
    Compare it with `debug_backend`, which gets none.
 3. Does the `content` event fire when you schedule a publish or delete content? Does the
@@ -190,7 +263,9 @@ answered.
    Does a property editor see live edits through `property` events, even though `content`
    doesn't fire for them?
 4. What does `PropertyState.settings` hold, and what does `property.set()` reject for each type?
-   (Blocked: property editors are disabled.)
+   Why is no editor offered for boolean and short-string properties? Our metadata reaches OCP
+   (whoami's manifest lists `property_type` and `property_format`), but the CMS's extension
+   list showed `configuration: {}`.
 5. Where does the settings form appear for a CMS-scoped install?
 6. Can `/v1/content/{key}/versions` list drafts and earlier versions (a status or paging
    parameter)?
@@ -210,6 +285,15 @@ answered.
   value is saved, and a page reload shows it, but no `subscribe()` event arrives. The editor has
   to update its own UI. `PropertyEditorShell` wraps `context.property.set` so every successful
   `set()`, including the one in the debugger's Property tab, updates the input.
+- **A property editor gets the page context and can call the backend.** `context.content` gives
+  the content being edited, the same as the sidebar, and `invokeFunction` works. So the debugger in
+  a property editor shows only Property and Bridge; versions and backend tests live in the
+  sidebar and view.
+- **Every extension frame has its own bridge.** Each iframe (sidebar, view, each property editor)
+  gets its own `CMS_INIT` and its own MessagePort, and the spy only sees its own frame's traffic.
+  Nothing a property editor does shows in the sidebar's Bridge tab. In the sidebar,
+  `context.property` is unbound (empty and read-only), so the CMS bridge can't set another
+  frame's property.
 - **The property editor iframe has a fixed height.** The shell pins the editor at the top and
   scrolls only the debugger. It uses its own toggle and scroll box, not Axiom's `Disclosure`.
   `DisclosureContent` puts the content in wrappers with `overflow: hidden` and no height limit,
