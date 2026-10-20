@@ -12,9 +12,10 @@ what earlier runs found. This file puts them in order and says what to collect.
 Add one line saying what you did in the CMS. Prefix it with the surface (sidebar or view) and
 the version shown in Overview.
 
-**Known CMS quirk.** If the sidebar is open when the CMS page reloads (F5 or switching
-language), it gets no content. Navigate to another item and back before running
-content-related tests.
+**Known CMS quirk.** After a full page reload (F5 or switching language), extensions get no
+content. Navigate to another item and back before running content-related tests.
+
+Finished tests are ~~struck through~~. Their results are in CLAUDE.md.
 
 ## 0. After every deploy (2 min)
 
@@ -24,28 +25,27 @@ content-related tests.
    differ, since that would be a CMS bug.
 3. **Iframe → CSP violations** should be 0, and the text should render in Roboto.
 
-## 1. Bridge: hidden host methods and events (done in the sidebar, 2026-10-20)
+## 1. Bridge: hidden host methods and events
 
-Done in the sidebar. Found only the SDK's methods, and only `content` events (see CLAUDE.md).
-Remaining:
-1. Run "Try 14 guessed methods" in the **view** and in a **property editor**. **Collect:** "Copy
+1. ~~**Sidebar:** "Try 14 guessed methods", and subscribe to every suggested event.~~ Done
+   2026-10-20: only the SDK's methods answer, and only `content` produces events.
+2. ~~Retest the reload bug.~~ Done 2026-10-20: still there.
+3. Run "Try 14 guessed methods" in the **view** and in a **property editor**. **Collect:** "Copy
    results" from each.
-2. ~~Retest the reload bug.~~ Done 2026-10-20 19:02: still there. After F5, both `get()` and
-   `subscribe()` give `null` until you navigate.
 
-## 2. Backend transport limits (10 min)
+## 2. Backend transport limits
 
-**Backend → Transport tests.** For each test, collect the badges (HTTP status, round trip)
-and the start of the result:
+**Backend → Transport tests.** For each test, collect the HTTP status and round trip, and
+the start of the result:
 
 | Test | Values | Question |
 | --- | --- | --- |
-| Echo | default | Does unicode survive? |
-| Return N KB | 256, 1024, 4096 | Where does it fail? |
-| Sleep N ms | ~~3000, 30000, 55000~~ (done: all pass), **65000** | What error does the extension get at the SDK's 60 s timeout? Does the function still finish (check `ocp app logs`)? |
-| Return HTTP status | 418, 500 | What reaches the extension? |
-| Throw (caught) | | Done: 500 with the JSON body (the function catches it) |
-| Throw (uncaught) | dev.10 | Is it a 500 with an empty body? Does the error text reach the extension? |
+| ~~Echo~~ | ~~default~~ | Done: unicode survives, but object keys come back sorted |
+| ~~Return N KB~~ | ~~256, 1024, 4000, 4096~~ | Done: the limit is 4 MiB |
+| Sleep N ms | ~~3000, 30000, 55000, 65000~~ | Done: 65 s fails at 59.3 s with "Failed to invoke function:". Still open: did the function finish (check `ocp app logs`)? |
+| ~~Return HTTP status~~ | ~~418, 500~~ | Done: status and JSON body arrive unchanged |
+| ~~Throw (caught)~~ | | Done: 500 with the JSON body (the function catches it) |
+| ~~Throw (uncaught)~~ | | Done: no status. The call rejects with "Failed to invoke function:", like a timeout |
 | OCP notification | | Where does it show up, if anywhere? |
 
 ## 3. Shared state and lifecycle (3 min)
@@ -85,28 +85,33 @@ and the start of the result:
 2. Add `?statuses=draft`, then `?locale=en`.
 3. **Collect:** the status badge and item count for each.
 
-## 8. Property editors (10 min, new in dev.6)
+## 8. Property editors
 
-The two editors (string, boolean) show a working editor with the debugger folded below it
-(open question 4 in CLAUDE.md).
+Three editors (string, short string, boolean) show a working editor with the debugger folded
+below it. In a property editor the debugger has only Property and Bridge (open question 4 in
+CLAUDE.md).
 
-1. **Choose the editor.** In CMS Settings → Content Types, create a property and pick the
-   debug editor in its editor dropdown. That works for long strings. For boolean and short
-   string the dropdown doesn't show yet. **Collect:** which types offer which editors.
-2. Unfold "UI Extension Debugger" under one editor. Go to **Property** (the first tab).
-   **Collect:** the property state (`value`, `readonly`, `settings`).
-3. Type in the string editor and press Enter, then toggle the boolean. In **Content → Content
-   events**, check whether editing through `property.set()` sends a content event.
-   **Collect:** "Copy events", plus any error shown under the editor.
-4. Run steps 0 to 1 (Overview, Bridge sweep) inside a property editor too. Its context may
-   differ from the sidebar's. **Collect:** "Copy full dump".
+1. ~~**Choose the editor.**~~ Done: in CMS Settings → Content Types, the editor dropdown
+   offers the debug editor for long strings only. Still open: why not for boolean and short
+   string.
+2. ~~Check that `set()` updates the input.~~ Done: the CMS doesn't echo it back, so the editor
+   updates itself (dev.8).
+3. Unfold "▸ UI Extension Debugger" and open **Property**. **Collect:** the "settings" section
+   ("Copy settings"), then change the property's settings in the content type (required,
+   help text, limits), reload, and collect it again.
+4. **Property → Write a raw value:** try `"text"`, `42`, `true` and `null`. **Collect:** the
+   `set()` result for each.
+5. **Bridge** in the property editor: "Try 14 guessed methods". **Collect:** "Copy results".
 
 ## Already answered
 
 These are recorded in CLAUDE.md, so you don't need to repeat them:
 - The init message.
+- The host methods and events in the sidebar.
 - What whoami returns and that no headers reach `debug_backend`.
-- When content events fire, and the reload bug.
+- When content events fire (including blocks and older versions), and the reload bug.
+- The transport limits: 4 MiB responses, 55 s calls, status codes passing through.
+- The sidebar's width: 300 to 550 px.
 - The Graph auth modes.
 - The CMS API content and versions endpoints.
 - Storage being blocked.

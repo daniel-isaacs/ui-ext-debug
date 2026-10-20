@@ -50,9 +50,9 @@ export function BackendPanel() {
             'OCP notification, then check where (if anywhere) it shows up.'
           ],
           expect:
-            'Echo returns æøå 🐞 intact. Large payloads and long sleeps succeed up to some limit. Any status and body the function returns arrives unchanged. An uncaught exception is expected to arrive as HTTP 500 with an empty body.',
+            'Echo returns æøå 🐞 intact. Large payloads and long sleeps succeed up to some limit. Any status and body the function returns arrives unchanged. A returned status and body arrive unchanged.',
           found:
-            'Responses up to just under 4 MiB work; 4096 KB fails with "Failed to invoke function:". 55 s sleeps work. 418 and a caught 500 arrive with their JSON body. Overhead is 200 to 650 ms per call.',
+            'Responses up to just under 4 MiB work; 4096 KB fails with "Failed to invoke function:". 55 s sleeps work; 65 s fails at about 59 s with the same empty error. 418 and a caught 500 arrive with their JSON body. An uncaught exception gives no status, only the same "Failed to invoke function:" error: always catch in perform(). Overhead is 200 to 650 ms per call.',
           report: 'For each test: the badges (HTTP status, round trip) and the first lines of the result. The Copy button gives the whole thing.'
         }}
       >

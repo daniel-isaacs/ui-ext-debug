@@ -70,9 +70,14 @@ the app as account-scoped (see the Unsplash repo's CLAUDE.md).
 - **Reusing the editor's auth isn't documented.** The CMS API and Graph need the app's own keys.
 - **The backend can't push to an extension.** The extension polls (see the Inbox tab and kvStore).
   Extensions also can't talk to each other directly. They share state through the backend's kvStore.
-- **`invokeFunction` limits:** the SDK times out every bridge call after 60 s. An exception thrown
-  in `perform()` reaches the frontend as `statusCode: 500` with an empty body. Functions with
-  `accepts: cms_ui_extension` can't be global or use `installation_resolution`.
+- **`invokeFunction` limits:** the SDK times out every bridge call after 60 s, but the CMS gives
+  up first, at about 59 s. The response limit is 4 MiB.
+  - The SDK source suggested an exception thrown in `perform()` would arrive as
+    `statusCode: 500` with an empty body. **Measured on a real CMS, it doesn't** (dev.10):
+    `invokeFunction` rejects with the generic `[ExtensionService] Failed to invoke function:`,
+    the same as a timeout or a too-large response.
+  - Statuses and bodies the function returns itself (418, 500) arrive unchanged.
+  - Functions with `accepts: cms_ui_extension` can't be global or use `installation_resolution`.
 - **The extension runs in a sandboxed iframe without `allow-forms`.** Never rely on `<form>`
   submit. Popups and the clipboard may be blocked too (Iframe tab).
 
@@ -98,7 +103,11 @@ the app as account-scoped (see the Unsplash repo's CLAUDE.md).
 - **In a view, `content.get()` returns `null` and the `content` subscription sends no event at
   load.**
 - **The sidebar's definition `type` is `"content"`, not `"sidebar"`.** The view's is `"view"`.
-  The sidebar frame's referrer is `<cms-origin>/ui/cms`, and it's about 472 px wide.
+  The sidebar frame's referrer is `<cms-origin>/ui/cms`.
+- **The sidebar can be resized from about 300 px to 550 px wide.** Chrome DevTools (Computed)
+  shows 299 px at the narrowest and 549 px at the widest, likely a CSS `min-width: 300px` and
+  `max-width: 550px` minus a 1 px border. Earlier dumps measured 472 and 521 px. Design sidebar
+  extensions for 300 px first: no wide tables, and controls that wrap or stack.
 - **Content in the sidebar: `content.get()` returns the current content straight away. Whether
   `subscribe()` also sends it changed during the day.**
   - Morning tests (dev.3): the subscription sent nothing at load, only on changes.
@@ -213,9 +222,18 @@ the app as account-scoped (see the Unsplash repo's CLAUDE.md).
     | 30,000 ms | 30,192 ms | 29,999 ms | about 190 ms |
     | 55,000 ms | 55,638 ms | 55,005 ms | about 630 ms |
 
-    The CMS doesn't cut calls short: 55 s works, so the SDK's 60 s bridge timeout is the real
-    limit. Overhead is fixed, at about 200 to 650 ms per call, whatever the duration. Calls over
-    60 s are untested so far.
+    | 65,000 ms | **fails at 59,294 ms** | unknown | |
+
+    Up to 55 s works, and the overhead is fixed at about 200 to 650 ms per call, whatever the
+    duration.
+    - **65 s fails before the 60 s mark**, with the same message as the 4 MiB failure:
+      `[ExtensionService] Failed to invoke function:` and `null`. It comes from the CMS's
+      extension service, not the SDK's own timeout, so the server side gives up at about 59 to
+      60 s. Keep calls well under that.
+    - **An extension can't tell a timeout from a too-large response,** or from any other
+      platform failure: all give the same empty error.
+    - **Still open:** did the function keep running after the cut-off? Look in
+      `ocp app logs` for `debug_backend sleep finished 65000 ms` (logged from dev.10).
   - **Return HTTP status:**
     - **418:** reaches the extension unchanged. `statusCode` is 418, and the JSON body (the error
       envelope) arrives whole. The call doesn't reject. Round trip 635 ms. So status codes and
@@ -226,11 +244,17 @@ the app as account-scoped (see the Unsplash repo's CLAUDE.md).
       exception: `DebugBackend.perform()` catches errors and returns its own 500 envelope. It
       only shows that a returned 500 also keeps its body. From dev.10, "Throw (uncaught)"
       throws before the try/catch, to test the claim in the known-facts section (500 with an
-      empty body). From dev.10 the cap (`MAX_SLEEP_MS`) is 70 s, so 65 s shows the
-    SDK timeout and whether the function still finishes. The debugger now cuts strings over 500 characters in displays and
-    copies, so results stay pasteable.
-    - The container had started 85 s earlier than the echo call (19:13:07). The 18:28 container
-      was gone after about 45 minutes, so containers are recycled or scaled down quickly.
+      empty body).
+    - **Throw (uncaught), dev.10:** no status code. `invokeFunction` rejects with
+      `[ExtensionService] Failed to invoke function:` and `null`, in 266 ms. That's the same
+      error as the timeout and the 4 MiB failure. So the known-facts claim ("500 with an empty
+      body") is wrong for this runtime. **Always catch errors in `perform()` and return your
+      own status and body.** Otherwise the extension only gets the generic error.
+  - **Containers are short-lived.** The container had started 85 s before the echo call
+    (19:13:07). The 18:28 container was gone after about 45 minutes, so containers are recycled
+    or scaled down quickly.
+  - The debugger cuts strings over 500 characters in displays and copies (dev.10), so payload
+    results stay pasteable. The debugger's sleep cap (`MAX_SLEEP_MS`) is 70 s from dev.10.
 - **A warm `invokeFunction` call takes about 260 ms round trip**, when the function itself runs
   in about 28 ms. One container served both the view and the sidebar.
 - The first whoami of each surface sends `client.content: null`, even in the sidebar. It's sent
