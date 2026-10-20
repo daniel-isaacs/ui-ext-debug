@@ -1,0 +1,66 @@
+sections:
+  - key: cms_api
+    label: CMS REST API
+    elements:
+      - type: instructions
+        text: >-
+          Optional. Create an API key in the CMS under Settings > API Keys and paste the client ID and secret here.
+          The debugger uses it to call the CMS REST API and shows the decoded token claims.
+      - type: text
+        key: baseUrl
+        label: Base URL
+        hint: https://api.cms.optimizely.com
+        help: Leave blank for https://api.cms.optimizely.com. The token is requested from <base>/oauth/token.
+      - type: text
+        key: clientId
+        label: Client ID
+        help: Client ID of a CMS API key.
+      - type: secret
+        key: clientSecret
+        label: Client Secret
+        help: Client secret of the same API key.
+      - type: text
+        key: actAs
+        label: Act as (optional)
+        help: >-
+          A CMS user name or email to impersonate (the act_as token parameter).
+          The API key must have impersonation enabled.
+      - type: button
+        label: Save
+        action: save
+        style: primary
+      - type: button
+        label: Save and test token
+        action: test
+
+  - key: graph
+    label: Optimizely Graph
+    elements:
+      - type: instructions
+        text: >-
+          Optional. Find these keys in the CMS under Settings > API Keys (Graph section).
+          The single key reads published content. The app key and secret (Basic auth) also read drafts.
+      - type: text
+        key: endpoint
+        label: Graph endpoint
+        hint: https://cg.optimizely.com/content/v2
+        help: Leave blank for https://cg.optimizely.com/content/v2.
+      - type: text
+        key: singleKey
+        label: Single key
+        help: Public, read-only key for published content.
+      - type: text
+        key: appKey
+        label: App key
+        help: Used with the app secret for HTTP Basic auth.
+      - type: secret
+        key: appSecret
+        label: App secret
+        help: Used with the app key for HTTP Basic auth.
+      - type: button
+        label: Save
+        action: save
+        style: primary
+      - type: button
+        label: Save and test
+        action: test

@@ -1,0 +1,50 @@
+meta:
+  app_id: steve_ui_ext_debug
+  display_name: UI Extension Debugger (Steve)
+  version: 1.0.0-dev.7
+  vendor: optimizely
+  summary: Shows everything a CMS UI extension can see, in every injection point, from the frontend and the backend.
+  support_url: https://support.optimizely.com
+  contact_email: steve@optimizely.no
+  categories:
+    - Testing & Utilities
+  availability:
+    - all
+
+runtime: node22-cms-ext
+
+functions:
+  debug_backend:
+    entry_point: DebugBackend
+    description: Backend for the debugger extensions. Reports its own context and proxies CMS REST API and Graph calls.
+    accepts: cms_ui_extension
+  debug_webhook:
+    entry_point: DebugWebhook
+    description: Plain HTTP webhook. Stores each request so the extensions can show it (backend to frontend by polling).
+
+ui_extensions:
+  sidebar:
+    - name: debug-sidebar
+      entry_point: DebugSidebar
+      display_name: UI Extension Debugger
+  view:
+    - name: debug-view
+      entry_point: DebugView
+      display_name: UI Extension Debugger
+  property-editor:
+    - name: debug-string-editor
+      entry_point: DebugStringEditor
+      display_name: Debug String Editor
+      metadata:
+        property_type: string
+    - name: debug-shortstring-editor
+      entry_point: DebugShortStringEditor
+      display_name: Debug Short String Editor
+      metadata:
+        property_type: string
+        property_format: shortstring
+    - name: debug-boolean-editor
+      entry_point: DebugBooleanEditor
+      display_name: Debug Boolean Editor
+      metadata:
+        property_type: boolean
