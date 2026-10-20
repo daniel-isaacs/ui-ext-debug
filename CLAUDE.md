@@ -211,7 +211,9 @@ answered.
   to update its own UI. `PropertyEditorShell` wraps `context.property.set` so every successful
   `set()`, including the one in the debugger's Property tab, updates the input.
 - **The property editor iframe has a fixed height.** The shell pins the editor at the top and
-  scrolls only the debugger. In a property editor, the debugger shows only Property, Overview,
+  scrolls only the debugger. It uses its own toggle and scroll box, not Axiom's `Disclosure`.
+  `DisclosureContent` puts the content in wrappers with `overflow: hidden` and no height limit,
+  so styles passed to it reach only the innermost box, and nothing scrolls (dev.8). In a property editor, the debugger shows only Property, Overview,
   Content and Bridge.
 - **Earlier: property editors didn't appear on any property** (dev.6 and dev.7: string, string with
   `shortstring`, and boolean), because no editor had been chosen in the content type settings. New test properties on ArticlePage still use the default editors.

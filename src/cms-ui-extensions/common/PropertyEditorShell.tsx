@@ -1,4 +1,4 @@
-import {Disclosure, DisclosureContent, DisclosureTrigger, Group, Input, Switch, Text} from '@optiaxiom/react';
+import {Box, Button, Group, Input, Switch, Text} from '@optiaxiom/react';
 import type {ExtensionContext, PropertySetResult, PropertyState} from '@optimizely/cms-extensibility-sdk';
 import {useEffect, useMemo, useRef, useState} from 'react';
 import {DebuggerApp} from './DebuggerApp';
@@ -17,6 +17,7 @@ export function PropertyEditorShell({context, kind}: {context: ExtensionContext;
   const [state, setState] = useState<PropertyState | null>(null);
   const [draft, setDraft] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [open, setOpen] = useState(false);
   const stateRef = useRef<PropertyState | null>(null);
 
   const apply = (next: PropertyState) => {
@@ -72,6 +73,8 @@ export function PropertyEditorShell({context, kind}: {context: ExtensionContext;
 
   const readonly = !state || state.readonly;
 
+  // Not Axiom's Disclosure: its content sits in wrappers with overflow hidden and no height limit,
+  // so it can't scroll inside the iframe's fixed height.
   return (
     <Group flexDirection="column" gap="4" style={{height: '100vh', overflow: 'hidden'}}>
       <Group flexDirection="column" gap="4" style={{flex: '0 0 auto'}}>
@@ -101,12 +104,20 @@ export function PropertyEditorShell({context, kind}: {context: ExtensionContext;
           </Text>
         )}
       </Group>
-      <Disclosure style={{flex: '1 1 auto', minHeight: 0, display: 'flex', flexDirection: 'column'}}>
-        <DisclosureTrigger>UI Extension Debugger</DisclosureTrigger>
-        <DisclosureContent style={{flex: '1 1 auto', minHeight: 0, overflowY: 'auto'}}>
+      <Button
+        appearance="subtle"
+        aria-expanded={open}
+        onClick={() => setOpen((value) => !value)}
+        size="sm"
+        style={{alignSelf: 'flex-start', flex: '0 0 auto'}}
+      >
+        {open ? '▾' : '▸'} UI Extension Debugger
+      </Button>
+      {open && (
+        <Box style={{flex: '1 1 auto', minHeight: 0, overflowY: 'auto'}}>
           <DebuggerApp context={syncedContext} surface="property-editor" />
-        </DisclosureContent>
-      </Disclosure>
+        </Box>
+      )}
     </Group>
   );
 }

@@ -12,6 +12,7 @@ import {OverviewPanel} from '../panels/OverviewPanel';
 import {PropertyPanel} from '../panels/PropertyPanel';
 import {DebugProvider, type DebugCtx, type Surface} from './debugContext';
 import {logGroup} from './log';
+import {CompactContext} from './ui';
 
 const MAX_CONTENT_EVENTS = 50;
 
@@ -77,72 +78,74 @@ export function DebuggerApp({context, surface}: {context: ExtensionContext; surf
 
   return (
     <DebugProvider value={debug}>
-      <Box p={compact ? '0' : dropdown ? '8' : '16'} fontSize={compact ? 'sm' : undefined}>
-        <Tabs value={active} onValueChange={setActive}>
-          {dropdown ? (
-            <Select
-              options={sections.map(({value, label, description}) => ({value, label, description}))}
-              value={active}
-              onValueChange={setActive}
+      <CompactContext.Provider value={compact}>
+        <Box p={compact ? '0' : dropdown ? '8' : '16'} fontSize={compact ? 'sm' : undefined}>
+          <Tabs value={active} onValueChange={setActive}>
+            {dropdown ? (
+              <Select
+                options={sections.map(({value, label, description}) => ({value, label, description}))}
+                value={active}
+                onValueChange={setActive}
+              >
+                <SelectTrigger w="full" />
+                <SelectContent />
+              </Select>
+            ) : (
+              <TabsList>
+                {sections.map(({value, label}) => (
+                  <TabsTrigger key={value} value={value} fontSize={compact ? 'sm' : undefined} py={compact ? '4' : undefined}>
+                    {label}
+                  </TabsTrigger>
+                ))}
+              </TabsList>
+            )}
+            <Box
+              pt={compact ? '8' : '12'}
+              // Under the sidebar's dropdown, indent the section with a guide line, so it reads as
+              // "the content of what is selected above".
+              style={
+                dropdown
+                  ? {borderLeft: '2px solid rgba(127, 127, 127, 0.3)', marginLeft: 8, marginTop: 8, paddingLeft: 12}
+                  : undefined
+              }
             >
-              <SelectTrigger w="full" />
-              <SelectContent />
-            </Select>
-          ) : (
-            <TabsList>
-              {sections.map(({value, label}) => (
-                <TabsTrigger key={value} value={value}>
-                  {label}
-                </TabsTrigger>
-              ))}
-            </TabsList>
-          )}
-          <Box
-            pt={compact ? '8' : '12'}
-            // Under the sidebar's dropdown, indent the section with a guide line, so it reads as
-            // "the content of what is selected above".
-            style={
-              dropdown
-                ? {borderLeft: '2px solid rgba(127, 127, 127, 0.3)', marginLeft: 8, marginTop: 8, paddingLeft: 12}
-                : undefined
-            }
-          >
-            {shown.has('property') && (
-              <TabsContent value="property">
-                <PropertyPanel />
+              {shown.has('property') && (
+                <TabsContent value="property">
+                  <PropertyPanel />
+                </TabsContent>
+              )}
+              <TabsContent value="overview">
+                <OverviewPanel />
               </TabsContent>
-            )}
-            <TabsContent value="overview">
-              <OverviewPanel />
-            </TabsContent>
-            <TabsContent value="content">
-              <ContentPanel events={contentEvents} />
-            </TabsContent>
-            <TabsContent value="bridge">
-              <BridgePanel />
-            </TabsContent>
-            {shown.has('backend') && (
-              <>
-                <TabsContent value="backend">
-                  <BackendPanel />
-                </TabsContent>
-                <TabsContent value="cms">
-                  <CmsApiPanel />
-                </TabsContent>
-                <TabsContent value="graph">
-                  <GraphPanel />
-                </TabsContent>
-                <TabsContent value="inbox">
-                  <InboxPanel />
-                </TabsContent>
-                <TabsContent value="env">
-                  <EnvironmentPanel />
-                </TabsContent>
-              </>
-            )}
-          </Box>
-        </Tabs>
-      </Box>
+              <TabsContent value="content">
+                <ContentPanel events={contentEvents} />
+              </TabsContent>
+              <TabsContent value="bridge">
+                <BridgePanel />
+              </TabsContent>
+              {shown.has('backend') && (
+                <>
+                  <TabsContent value="backend">
+                    <BackendPanel />
+                  </TabsContent>
+                  <TabsContent value="cms">
+                    <CmsApiPanel />
+                  </TabsContent>
+                  <TabsContent value="graph">
+                    <GraphPanel />
+                  </TabsContent>
+                  <TabsContent value="inbox">
+                    <InboxPanel />
+                  </TabsContent>
+                  <TabsContent value="env">
+                    <EnvironmentPanel />
+                  </TabsContent>
+                </>
+              )}
+            </Box>
+          </Tabs>
+        </Box>
+      </CompactContext.Provider>
     </DebugProvider>
   );
 }

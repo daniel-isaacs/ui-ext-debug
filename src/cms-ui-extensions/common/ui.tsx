@@ -11,7 +11,7 @@ import {
   Text
 } from '@optiaxiom/react';
 import type {ReactNode} from 'react';
-import {useState} from 'react';
+import {createContext, useContext, useState} from 'react';
 import {copyToClipboard} from './clipboard';
 import type {CallOutcome} from './debugContext';
 import {logGroup} from './log';
@@ -95,6 +95,9 @@ export function JsonView({title, value, maxHeight = 360}: {title?: string; value
   );
 }
 
+/** True inside a property editor, where the debugger has to fit in a field-sized iframe. */
+export const CompactContext = createContext(false);
+
 /**
  * What a section tests and how. `why` is always shown; the rest folds away so the narrow
  * sidebar stays usable. Keep each line short: this is for people new to UI extensions.
@@ -163,9 +166,16 @@ export function Section({
   guide?: Guide;
 }) {
   const intro = guide?.why ?? hint;
+  const compact = useContext(CompactContext);
   return (
-    <Group flexDirection="column" gap="8">
-      <Heading level="4">{title}</Heading>
+    <Group flexDirection="column" gap={compact ? '4' : '8'}>
+      {compact ? (
+        <Text fontSize="sm" fontWeight="600">
+          {title}
+        </Text>
+      ) : (
+        <Heading level="4">{title}</Heading>
+      )}
       {intro && (
         <Text color="fg.secondary" fontSize="sm">
           {intro}
