@@ -1,4 +1,4 @@
-import {Box, Tabs, TabsContent, TabsList, TabsTrigger} from '@optiaxiom/react';
+import {Box, Select, SelectContent, SelectTrigger, Tabs, TabsContent, TabsList, TabsTrigger} from '@optiaxiom/react';
 import type {ContentState, ExtensionContext} from '@optimizely/cms-extensibility-sdk';
 import {useEffect, useMemo, useState} from 'react';
 import {BackendPanel} from '../panels/BackendPanel';
@@ -14,6 +14,25 @@ import {DebugProvider, type DebugCtx, type Surface} from './debugContext';
 import {logGroup} from './log';
 
 const MAX_CONTENT_EVENTS = 50;
+
+const SECTIONS = [
+  {value: 'property', label: 'Property', description: 'The bound property: get, set, subscribe'},
+  {value: 'overview', label: 'Overview', description: 'Versions, current content, installation'},
+  {value: 'content', label: 'Content', description: 'Content events and lookups'},
+  {value: 'bridge', label: 'Bridge', description: 'Messages to and from the CMS, hidden methods'},
+  {value: 'backend', label: 'Backend', description: 'whoami, transport limits, shared state'},
+  {value: 'cms', label: 'CMS API', description: 'CMS REST API through the backend'},
+  {value: 'graph', label: 'Graph', description: 'Optimizely Graph through the backend'},
+  {value: 'inbox', label: 'Inbox', description: 'Requests sent to the webhook'},
+  {value: 'env', label: 'Iframe', description: 'Sandbox tests, CSP violations, environment'}
+];
+
+/** Property editors are field-sized, so they only get the sections about the bound property. */
+const SECTIONS_BY_SURFACE: Record<Surface, string[]> = {
+  'property-editor': ['property', 'overview', 'content', 'bridge'],
+  sidebar: ['overview', 'content', 'bridge', 'backend', 'cms', 'graph', 'inbox', 'env'],
+  view: ['overview', 'content', 'bridge', 'backend', 'cms', 'graph', 'inbox', 'env']
+};
 
 /**
  * The whole debugger. Every injection point renders this same component; only
@@ -49,53 +68,78 @@ export function DebuggerApp({context, surface}: {context: ExtensionContext; surf
   }, [context, surface]);
 
   const debug = useMemo<DebugCtx>(() => ({context, surface, content}), [context, surface, content]);
-  const narrow = surface !== 'view';
+  const sections = SECTIONS.filter((section) => SECTIONS_BY_SURFACE[surface].includes(section.value));
+  const shown = new Set(sections.map((section) => section.value));
+  const [active, setActive] = useState(sections[0].value);
+  // Eight tabs wrap badly in a ~470 px sidebar; four fit in a property editor.
+  const dropdown = surface === 'sidebar';
+  const compact = surface === 'property-editor';
 
   return (
     <DebugProvider value={debug}>
-      <Box p={narrow ? '8' : '16'}>
-        <Tabs defaultValue={surface === 'property-editor' ? 'property' : 'overview'}>
-          <TabsList style={{flexWrap: 'wrap'}}>
-            <TabsTrigger value="overview">Overview</TabsTrigger>
-            <TabsTrigger value="content">Content</TabsTrigger>
-            {surface === 'property-editor' && <TabsTrigger value="property">Property</TabsTrigger>}
-            <TabsTrigger value="bridge">Bridge</TabsTrigger>
-            <TabsTrigger value="backend">Backend</TabsTrigger>
-            <TabsTrigger value="cms">CMS API</TabsTrigger>
-            <TabsTrigger value="graph">Graph</TabsTrigger>
-            <TabsTrigger value="inbox">Inbox</TabsTrigger>
-            <TabsTrigger value="env">Iframe</TabsTrigger>
-          </TabsList>
-          <Box pt="12">
+      <Box p={compact ? '0' : dropdown ? '8' : '16'} fontSize={compact ? 'sm' : undefined}>
+        <Tabs value={active} onValueChange={setActive}>
+          {dropdown ? (
+            <Select
+              options={sections.map(({value, label, description}) => ({value, label, description}))}
+              value={active}
+              onValueChange={setActive}
+            >
+              <SelectTrigger w="full" />
+              <SelectContent />
+            </Select>
+          ) : (
+            <TabsList>
+              {sections.map(({value, label}) => (
+                <TabsTrigger key={value} value={value}>
+                  {label}
+                </TabsTrigger>
+              ))}
+            </TabsList>
+          )}
+          <Box
+            pt={compact ? '8' : '12'}
+            // Under the sidebar's dropdown, indent the section with a guide line, so it reads as
+            // "the content of what is selected above".
+            style={
+              dropdown
+                ? {borderLeft: '2px solid rgba(127, 127, 127, 0.3)', marginLeft: 8, marginTop: 8, paddingLeft: 12}
+                : undefined
+            }
+          >
+            {shown.has('property') && (
+              <TabsContent value="property">
+                <PropertyPanel />
+              </TabsContent>
+            )}
             <TabsContent value="overview">
               <OverviewPanel />
             </TabsContent>
             <TabsContent value="content">
               <ContentPanel events={contentEvents} />
             </TabsContent>
-            {surface === 'property-editor' && (
-              <TabsContent value="property">
-                <PropertyPanel />
-              </TabsContent>
-            )}
             <TabsContent value="bridge">
               <BridgePanel />
             </TabsContent>
-            <TabsContent value="backend">
-              <BackendPanel />
-            </TabsContent>
-            <TabsContent value="cms">
-              <CmsApiPanel />
-            </TabsContent>
-            <TabsContent value="graph">
-              <GraphPanel />
-            </TabsContent>
-            <TabsContent value="inbox">
-              <InboxPanel />
-            </TabsContent>
-            <TabsContent value="env">
-              <EnvironmentPanel />
-            </TabsContent>
+            {shown.has('backend') && (
+              <>
+                <TabsContent value="backend">
+                  <BackendPanel />
+                </TabsContent>
+                <TabsContent value="cms">
+                  <CmsApiPanel />
+                </TabsContent>
+                <TabsContent value="graph">
+                  <GraphPanel />
+                </TabsContent>
+                <TabsContent value="inbox">
+                  <InboxPanel />
+                </TabsContent>
+                <TabsContent value="env">
+                  <EnvironmentPanel />
+                </TabsContent>
+              </>
+            )}
           </Box>
         </Tabs>
       </Box>

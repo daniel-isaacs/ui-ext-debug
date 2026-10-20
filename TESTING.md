@@ -89,9 +89,9 @@ and the start of the result:
 The two editors (string, boolean) show a working editor with the debugger folded below it
 (open question 4 in CLAUDE.md).
 
-1. **Find out where they apply.** Open a page with string and boolean properties. Does the
-   debug editor replace the editor for *every* string and boolean property, or must it be chosen
-   per property in the content type settings? **Collect:** a line describing what you see.
+1. **Choose the editor.** In CMS Settings → Content Types, create a property and pick the
+   debug editor in its editor dropdown. That works for long strings. For boolean and short
+   string the dropdown doesn't show yet. **Collect:** which types offer which editors.
 2. Unfold "UI Extension Debugger" under one editor. Go to **Property** (the first tab).
    **Collect:** the property state (`value`, `readonly`, `settings`).
 3. Type in the string editor and press Enter, then toggle the boolean. In **Content → Content

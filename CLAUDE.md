@@ -200,8 +200,21 @@ answered.
 - **The install may already be on the new version when the upgrade runs.** For dev.7, `ocp directory
   upgrade` said "already set to …dev.7", so publishing a dev version seems to move a dev install
   along with it. The upgrade step is harmless either way.
-- **Property editors don't appear on any property** (dev.6 and dev.7: string, string with
-  `shortstring`, and boolean). New test properties on ArticlePage still use the default editors.
+- **A property editor is chosen per property, in CMS Settings → Content Types.** When you
+  create a property and pick its type, an editor dropdown lists the matching extensions.
+  - It works for the **long string** (`property_type: string`, no format): "Debug String
+    Editor" can be chosen there and then renders.
+  - As of dev.7, the dropdown doesn't appear for **boolean** or **short string**
+    (`shortstring`). That's still to investigate.
+- **The CMS doesn't echo `property.set()` back to the editor.** After a successful `set()` the
+  value is saved, and a page reload shows it, but no `subscribe()` event arrives. The editor has
+  to update its own UI. `PropertyEditorShell` wraps `context.property.set` so every successful
+  `set()`, including the one in the debugger's Property tab, updates the input.
+- **The property editor iframe has a fixed height.** The shell pins the editor at the top and
+  scrolls only the debugger. In a property editor, the debugger shows only Property, Overview,
+  Content and Bridge.
+- **Earlier: property editors didn't appear on any property** (dev.6 and dev.7: string, string with
+  `shortstring`, and boolean), because no editor had been chosen in the content type settings. New test properties on ArticlePage still use the default editors.
   The format and the subfolder (`debugger/`) aren't the cause. The bundles are flat
   (`dist/cms-ui-extensions/DebugStringEditor.js`), and the build would fail if one were missing.
   The OCP docs don't explain how the CMS attaches an editor to a property. This is open with the
