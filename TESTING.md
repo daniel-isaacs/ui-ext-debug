@@ -92,8 +92,8 @@ below it. In a property editor the debugger has only Property and Bridge (open q
 CLAUDE.md).
 
 1. ~~**Choose the editor.**~~ Done: in CMS Settings → Content Types, the editor dropdown
-   offers the debug editor for long strings only. Still open: why not for boolean and short
-   string.
+   offers the debug editors for long and short strings (short string since the evening of
+   2026-10-20, with no change on our side). Still open: why not for boolean.
 2. ~~Check that `set()` updates the input.~~ Done: the CMS doesn't echo it back, so the editor
    updates itself (dev.8).
 3. Unfold "▸ UI Extension Debugger" and open **Property**. **Collect:** the "settings" section

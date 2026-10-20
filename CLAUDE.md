@@ -287,7 +287,8 @@ answered.
    Does a property editor see live edits through `property` events, even though `content`
    doesn't fire for them?
 4. What does `PropertyState.settings` hold, and what does `property.set()` reject for each type?
-   Why is no editor offered for boolean and short-string properties? Our metadata reaches OCP
+   Why is no editor offered for boolean properties (short string started working by itself
+   on 2026-10-20)? Our metadata reaches OCP
    (whoami's manifest lists `property_type` and `property_format`), but the CMS's extension
    list showed `configuration: {}`.
 5. Where does the settings form appear for a CMS-scoped install?
@@ -303,8 +304,11 @@ answered.
   create a property and pick its type, an editor dropdown lists the matching extensions.
   - It works for the **long string** (`property_type: string`, no format): "Debug String
     Editor" can be chosen there and then renders.
-  - As of dev.7, the dropdown doesn't appear for **boolean** or **short string**
-    (`shortstring`). That's still to investigate.
+  - **Short string:** the dropdown didn't appear in dev.7 or dev.8. By the evening of
+    2026-10-20 (dev.10) it did, for both string types, though nothing in the app changed for it.
+    Probably a CMS-side change or delay.
+  - **Boolean:** still no editor dropdown (dev.10), although `property_type: boolean` is
+    declared and valid.
 - **The CMS doesn't echo `property.set()` back to the editor.** After a successful `set()` the
   value is saved, and a page reload shows it, but no `subscribe()` event arrives. The editor has
   to update its own UI. `PropertyEditorShell` wraps `context.property.set` so every successful
