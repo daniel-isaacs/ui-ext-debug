@@ -117,7 +117,7 @@ export async function runSandboxTests(graphEndpoint: string): Promise<SandboxTes
     popup = null;
   }
   // With noopener, window.open returns null even when it worked, so this can't tell those apart.
-  results.push({name: 'window.open', result: popup ? 'allowed' : 'returned null (blocked, or allowed with noopener)'});
+  results.push({name: 'window.open', result: popup ? 'allowed' : 'returned null: blocked if no tab opened'});
   popup?.close();
 
   // Clipboard

@@ -28,6 +28,12 @@ const PRESETS: Record<string, string> = {
     items { _metadata { key displayName types locale version status published lastModified url { default hierarchical } } }
   }
 }`,
+  'This version': `query ContentVersion($key: String!, $locale: String!, $version: String!) {
+  _Content(where: { _metadata: { key: { eq: $key }, locale: { eq: $locale }, version: { eq: $version } } }) {
+    total
+    items { _metadata { key displayName types locale version status published lastModified url { default hierarchical } } }
+  }
+}`,
   'Count by type': `{
   _Content {
     total
@@ -45,7 +51,12 @@ export function GraphPanel() {
 
   const pickPreset = (name: string) => {
     setQuery(PRESETS[name]);
-    setVariables(name === 'This content' ? JSON.stringify({key: content?.key ?? ''}, null, 2) : '');
+    const current = {key: content?.key ?? '', locale: content?.locale ?? '', version: content?.version ?? ''};
+    const variables: Record<string, unknown> = {
+      'This content': {key: current.key},
+      'This version': current
+    };
+    setVariables(name in variables ? JSON.stringify(variables[name], null, 2) : '');
   };
 
   const send = () => {

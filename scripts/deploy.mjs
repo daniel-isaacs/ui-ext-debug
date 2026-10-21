@@ -1,9 +1,15 @@
-// Validates, publishes a new dev version and upgrades the CMS install to it.
+// Validates and publishes a new dev version, then reports whether the CMS install moved to it.
 //
-//   yarn deploy                       # scope from OCP_SCOPE, or the gitignored .ocp-scope file
-//   yarn deploy --scope <cms-uuid>    # another CMS instance
+//   yarn deploy                       # validate + prepare --bump-dev-version --publish
 //   yarn deploy --skip-validate       # when `yarn validate` has just passed
-//   yarn deploy --upgrade-only        # resume: upgrade to the version already in app.yml
+//   yarn deploy --upgrade-only        # only upgrade the install to the version in app.yml
+//   yarn deploy --scope <cms-uuid>    # the install to upgrade (default: OCP_SCOPE, or .ocp-scope)
+//
+// `ocp app prepare --publish` waits until the version is published, as long as it shows its
+// progress. An earlier version of this script passed --no-progress, and prepare then returned
+// while the version was still BUILT. Publishing seems to move dev installs to the new version
+// by itself; an extra `ocp directory upgrade` on top ran the upgrade hooks twice. So this
+// script doesn't upgrade, it only checks.
 import {spawnSync} from 'node:child_process';
 import {existsSync, readFileSync} from 'node:fs';
 import path from 'node:path';
@@ -17,9 +23,6 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const args = process.argv.slice(2);
 const scopeIndex = args.indexOf('--scope');
 const scope = scopeIndex >= 0 ? args[scopeIndex + 1] : defaultScope();
-if (!scope) {
-  fail(`No CMS instance UUID. Pass --scope <uuid>, set OCP_SCOPE, or put it in ${SCOPE_FILE}.`);
-}
 
 function defaultScope() {
   if (process.env.OCP_SCOPE) return process.env.OCP_SCOPE.trim();
@@ -40,39 +43,47 @@ function appVersion() {
   return match[1];
 }
 
+/** Tracker IDs of the installs on a version. The CLI shows scope names, not UUIDs, so trackers identify installs. */
+function trackersOn(version) {
+  const result = spawnSync(`ocp directory list-installs ${APP_ID}@${version}`, {cwd: root, encoding: 'utf8', shell: true});
+  return `${result.stdout}`
+    .split('\n')
+    .map((line) => line.trim().split(/\s{2,}/))
+    .filter((cells) => cells.length >= 4 && cells[0] !== 'Tracker')
+    .map((cells) => cells[0]);
+}
+
 function fail(message) {
   console.error(`\ndeploy: ${message}`);
   process.exit(1);
 }
 
-// `prepare --publish` returns while the version is still PUBLISHING, and upgrading then fails
-// with "is not running". Poll `ocp directory status` until it says PUBLISHED.
-function waitUntilPublished(version) {
-  const deadline = Date.now() + 15 * 60_000;
-  let last = '';
-  while (Date.now() < deadline) {
-    const result = spawnSync(`ocp directory status ${APP_ID}@${version}`, {cwd: root, encoding: 'utf8', shell: true});
-    const state = `${result.stdout}`.match(/Version state:\s*(\S+)/)?.[1] ?? 'unknown';
-    if (state !== last) console.log(`deploy: ${APP_ID}@${version} is ${state}`);
-    last = state;
-    if (state === 'PUBLISHED') return;
-    if (/FAIL|ERROR|REJECT/i.test(state)) fail(`publishing ended in state ${state}.`);
-    spawnSync(process.execPath, ['-e', 'setTimeout(() => {}, 10000)']);
-  }
-  fail(`${APP_ID}@${version} was not PUBLISHED after 15 minutes. Resume with: yarn deploy --upgrade-only`);
+function upgrade(version) {
+  if (!scope) fail(`No CMS instance UUID. Pass --scope <uuid>, set OCP_SCOPE, or put it in ${SCOPE_FILE}.`);
+  run('ocp', ['directory', 'upgrade', APP_ID, '-v', version, '--scope', scope]);
+  console.log(`\ndeploy: upgraded the install on ${scope} to ${version}.`);
 }
 
-let version = appVersion();
-if (!args.includes('--upgrade-only')) {
-  if (!args.includes('--skip-validate')) run('yarn', ['validate']);
-  const before = version;
-  run('ocp', ['app', 'prepare', '--bump-dev-version', '--publish', '--no-progress']);
-  version = appVersion();
-  if (version === before) fail(`app.yml is still at ${before}; the version was not bumped.`);
+if (args.includes('--upgrade-only')) {
+  upgrade(appVersion());
+  process.exit(0);
 }
 
-waitUntilPublished(version);
-run('ocp', ['directory', 'upgrade', APP_ID, '-v', version, '--scope', scope]);
+if (!args.includes('--skip-validate')) run('yarn', ['validate']);
 
-console.log(`\ndeploy: ${APP_ID}@${version} is published and installed on ${scope}.`);
-console.log(`Logs: ocp app logs --appId ${APP_ID} --scope ${scope} --tail`);
+const before = appVersion();
+const installsBefore = trackersOn(before);
+run('ocp', ['app', 'prepare', '--bump-dev-version', '--publish']);
+const version = appVersion();
+if (version === before) fail(`app.yml is still at ${before}; the version was not bumped.`);
+
+const installsAfter = trackersOn(version);
+const moved = installsBefore.filter((tracker) => installsAfter.includes(tracker));
+const stayed = installsBefore.filter((tracker) => !installsAfter.includes(tracker));
+console.log(`\ndeploy: ${APP_ID}@${version} is published.`);
+if (moved.length > 0) console.log(`deploy: moved to ${version} by itself: ${moved.join(', ')}`);
+if (stayed.length > 0) {
+  console.log(`deploy: still on ${before}: ${stayed.join(', ')}. To move it: yarn deploy --upgrade-only`);
+}
+if (installsBefore.length === 0) console.log(`deploy: no installs were on ${before}.`);
+if (scope) console.log(`Logs: ocp app logs --appId ${APP_ID} --scope ${scope} --tail`);

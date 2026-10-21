@@ -18,3 +18,7 @@ yalc.*
 
 # yarn deploy target (CMS instance UUID)
 .ocp-scope
+
+# Questions and feedback for the OCP and CMS teams (kept local for now)
+OPEN-QUESTIONS.md
+FEEDBACK.md

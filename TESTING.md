@@ -50,33 +50,38 @@ the start of the result:
 
 ## 3. Shared state and lifecycle (3 min)
 
-1. **Backend → Shared state:** Write in the sidebar, then Read in the view. **Collect:** the
-   Read result.
-2. **Backend → Lifecycle log:**
-   1. Load it.
-   2. Save the app settings once.
-   3. Load it again.
-   4. **Collect:** both results. This shows whether onUpgrade ran for each deploy.
-3. Note where you found the settings form for this CMS-scoped install (open question 5 in
-   CLAUDE.md).
+1. ~~**Backend → Shared state:** Write in the sidebar, then Read in the view.~~ Done
+   2026-10-21: works, and the value survives for hours and across containers.
+2. ~~**Backend → Lifecycle log:** load it, save the app settings, load it again.~~ Done
+   2026-10-21: upgrades run onUpgrade → onFinalizeUpgrade → onAfterUpgrade, sometimes twice
+   per deploy. Settings saves run onSettingsForm once per section.
+3. ~~Note where you found the settings form.~~ Done 2026-10-21: only in the OCP App
+   Directory, not in the CMS.
 
-## 4. Webhook inbox (3 min)
+## 4. Webhook inbox
 
-1. **Inbox:** turn on polling.
-2. Run the shown `curl` command in Git Bash.
-3. **Collect:** the received request. Compare its headers with whoami, where `debug_backend`
-   received none.
+1. ~~**Inbox:** turn on polling, send a request, and compare its headers with whoami's.~~
+   Done 2026-10-21: normal HTTP headers arrive, and there's no authentication.
+2. ~~Send valid JSON from PowerShell, and time the polling.~~ Done 2026-10-21:
+   `Invoke-RestMethod` works, the body arrives intact, and the Inbox showed it within 5 s.
 
-## 5. Sandbox (2 min)
+## 5. Sandbox
 
-**Iframe → Sandbox tests → Run tests.** **Collect:** "Copy results".
+~~**Iframe → Sandbox tests → Run tests.**~~ Done 2026-10-21: forms, popups and the Clipboard
+API are blocked. Direct `fetch` to Graph works.
 
 ## 6. Content events, remaining cases (5 min)
 
 **Content → Content events** (Clear the Bridge traffic first):
-1. In the **view**: reload the CMS with the view open, then open content. Does it get content?
-2. Schedule a publish, and delete a test item. Does either send an event?
-3. **Collect:** "Copy events", with a line for each action.
+1. ~~In the **view**: does it ever get content?~~ Done 2026-10-21: never. A view is a
+   standalone page with no current content: `content.get()` is always `null`. Only the sidebar
+   and property editors have content.
+2. ~~In the **sidebar**: schedule a publish, then delete a test item.~~ Done 2026-10-21:
+   scheduling sends an event with the same version. Deleting moves the page to the waste
+   basket, and the CMS opens the parent. The only event is for the parent, so there's no
+   "deleted" signal.
+3. ~~After a delete, does `GET /v1/content/{deleted key}` show the waste basket?~~ Done
+   2026-10-21: no, it returns 404, and Graph (app key) returns nothing for it either.
 
 ## 7. CMS REST versions (2 min)
 

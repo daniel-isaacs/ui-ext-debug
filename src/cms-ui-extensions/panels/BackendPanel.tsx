@@ -88,6 +88,7 @@ export function BackendPanel() {
           why: "Extensions can't talk to each other directly, and the iframe has no localStorage. The backend's kvStore is the only shared, persistent store.",
           steps: ['Type a note and click Write in the sidebar.', 'Open the view (full-page extension) and click Read.'],
           expect: 'The view reads the note with writtenBy "sidebar" and the time it was written.',
+          found: 'Works. A note written in the morning was still there in the evening, read by a new container.',
           report: 'The Read result.'
         }}
       >
@@ -105,6 +106,8 @@ export function BackendPanel() {
           why: 'onInstall, onUpgrade and onSettingsForm run outside any extension call. This shows when they ran and with what context, compared with the function context above.',
           steps: ['Click Load lifecycle log.', 'Save the app settings once, then load it again.'],
           expect: 'onInstall from the first install, onUpgrade for each deploy (from the previous version), onSettingsForm for each save.',
+          found:
+            'Upgrades run onUpgrade → onFinalizeUpgrade → onAfterUpgrade, sometimes twice per deploy (once even concurrently), so hooks must be idempotent. onSettingsForm runs once per saved section ("cms_api/save").',
           report: 'The Copy button on the result.'
         }}
       >

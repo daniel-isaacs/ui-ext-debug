@@ -27,10 +27,12 @@ Build setup was copied from `D:\Dev\ui-ext-unsplash`, which is based on Optimize
 ```bash
 yarn install
 yarn validate   # lint + typecheck + build + ocp-app-sdk validate. Run before every publish.
-yarn deploy     # validate, prepare --bump-dev-version --publish, then directory upgrade on the
-                # dev CMS (scripts/deploy.mjs). Waits for PUBLISHED before upgrading.
-                # Flags: --scope <uuid>, --skip-validate, --upgrade-only (resume).
-                # Default scope: OCP_SCOPE, else the gitignored .ocp-scope file.
+yarn deploy     # validate + prepare --bump-dev-version --publish (scripts/deploy.mjs), then
+                # report whether the installs moved to the new version by themselves.
+                # It doesn't upgrade: an extra upgrade on top of the move ran the hooks twice.
+                # --upgrade-only upgrades the install (scope: --scope, OCP_SCOPE or .ocp-scope).
+                # Never pass --no-progress to prepare: without it prepare waits for the
+                # publish to finish; with it, prepare returned while the version was BUILT.
                 # Commit afterwards: it changes the version in app.yml.
 ocp app register                                   # once; app ID must match app.yml
 ocp app prepare --bump-dev-version --publish
@@ -100,8 +102,11 @@ the app as account-scoped (see the Unsplash repo's CLAUDE.md).
   connect-src https:; img-src https: data:; font-src https:; frame-ancestors 'self'`.
   **`data:` fonts are blocked.** All 44 inlined Roboto `@font-face` rules fail, and the UI falls
   back to system fonts. `img-src` does allow `data:`.
-- **In a view, `content.get()` returns `null` and the `content` subscription sends no event at
-  load.**
+- **A view never has a current content item.** `content.get()` always returns `null` there:
+  at load, and when called again later (confirmed 2026-10-21). A view is a standalone page under
+  `/ui/extensions`, not tied to what the editor has open. Only the sidebar and property editors
+  get content. A view that needs content must let the user pick it, for example through Graph or
+  the CMS API.
 - **The sidebar's definition `type` is `"content"`, not `"sidebar"`.** The view's is `"view"`.
   The sidebar frame's referrer is `<cms-origin>/ui/cms`.
 - **The sidebar can be resized from about 300 px to 550 px wide.** Chrome DevTools (Computed)
@@ -142,9 +147,30 @@ the app as account-scoped (see the Unsplash repo's CLAUDE.md).
   - "Ready to publish": event, same version (`472`).
   - Publish: event, same version (`472`).
   - The first edit after publishing: event, new version (`486`). This creates a new draft.
+  - Scheduling a publish (2026-10-21, another page): event, same version (`485`).
+  - **Deleting a page** (2026-10-21) moves it to the **waste basket**: it isn't deleted
+    straight away. A background job deletes it after a configurable period, about 30 days by
+    default. The waste basket is a container with its own ID.
+    - After the delete, the CMS opens the deleted page's **parent**, and the only event is for
+      that parent. Tested twice: once the parent was the start page (`…/en/`), once
+      `…/en/examples/`.
+    - **There's no event for the delete itself.** The extension only sees ordinary navigation
+      to the parent.
+    - **The CMS REST API hides waste-basket content.** `GET /v1/content/{key}` returned 200 with
+      `container` = the parent's key before the delete. Straight after, it returned
+      **404 Not Found** (`application/problem+json`, RFC 9110 type link). So `container` never
+      shows the waste basket, and a 404 can't be told from "never existed".
+    - **Graph drops it too.** With the app key and secret, which sees drafts and old versions,
+      the deleted key returns `total: 0` about 2.5 minutes after the delete. Neither API can tell
+      "in the waste basket" from "never existed".
+- **The CMS REST API was updated overnight:** `cms-api-version` went from `v1-2026.10.1`
+  (2026-10-20) to `v1-2026.10.8` (2026-10-21). That fits the other overnight changes:
+  short-string editors started being offered, and `subscribe()` started sending the current
+  state straight away.
 
-  The payload has no status field, so the "ready to publish" and "publish" events are
-  identical. To find out what changed, look the version up in the CMS REST API. The version
+  The payload has no status field, so the "ready to publish", "publish" and "scheduled"
+  events are identical. To find out what changed, look the version up in Graph with the app
+  key; the CMS REST API's versions endpoint only lists published versions. The version
   jumped from 472 to 486 on one page, which confirms it's an instance-wide version ID.
 - **CMS bug: after a full page reload, extensions get no content until you navigate.**
   Switching locale reloads the whole CMS page, extension frames included. F5 does the same.
@@ -179,6 +205,18 @@ the app as account-scoped (see the Unsplash repo's CLAUDE.md).
   - After a publish, the same `version` appears twice, once as `Draft` and once as
     `Published`. Prefer `Published`, or the record with the newest `lastModified`.
   - Graph had indexed the publish within 12 s.
+  - **A page that has never been published** (2026-10-21):
+    - With the single key, the result is `total: 0` and no items. That's not an error, so an
+      extension can't tell "not published yet" from "doesn't exist".
+    - With the app key, the page comes back with `status: "Draft"`, `published: null`, and a
+      `url` with no `base`.
+    - That single-key call took 1.7 s inside Graph (`x-response-time: 1664`), against 0.2 s
+      for the app-key call. It may have been a cold cache.
+  - **Look up the exact version from a `content` event** by filtering on `key`, `locale` and
+    `version` together: `_metadata: {key: {eq}, locale: {eq}, version: {eq}}`. The Content tab
+    ("Graph: this version") and the Graph tab ("This version" preset) do this from dev.11.
+    Filtering on the key alone returns every version in every language. Untested yet:
+    whether Graph accepts the `version` filter.
   - Limits: `x-ratelimit-limit: 2500` per 10 s window. The response's `extensions.cost`
     gives each query's cost (33 for this one).
 - **Graph rejects the CMS API token as a bearer.** It returns `401 AUTHENTICATION_ERROR` with
@@ -250,6 +288,58 @@ the app as account-scoped (see the Unsplash repo's CLAUDE.md).
       error as the timeout and the 4 MiB failure. So the known-facts claim ("500 with an empty
       body") is wrong for this runtime. **Always catch errors in `perform()` and return your
       own status and body.** Otherwise the extension only gets the generic error.
+  - **Shared state through kvStore works across surfaces and lasts** (2026-10-21, dev.10). A note
+    written in the sidebar at 06:10 UTC was read in the view at 17:55 UTC, almost 12 hours
+    later, by a freshly started container (`invocation: 1`). kvStore belongs to the install, not
+    to a container. That read took 168 ms inside the function, on a cold start.
+  - **Lifecycle hooks** (log read 2026-10-21; it keeps the last 25 entries, so `onInstall` has
+    rolled off):
+    - **An upgrade runs three hooks in order:** `onUpgrade(fromVersion)` →
+      `onFinalizeUpgrade(fromVersion)` → `onAfterUpgrade()`, within about 0.3 to 0.8 s.
+      `onAfterUpgrade` gets no version.
+    - **The hooks can run more than once per deploy. Make them idempotent.**
+      - The dev.10 deploy logged two full runs, one second apart: "from dev.9", then "from
+        dev.10". The dev.8 deploy did the same ("from dev.7", then "from dev.8"). Publishing a
+        dev version seems to move the install by itself, and the explicit
+        `ocp directory upgrade` then runs the hooks again, from a version to itself.
+      - The dev.6 deploy (14:12) ran the whole sequence **twice at the same time**, both "from
+        dev.5", interleaved.
+    - **`onSettingsForm` runs once per saved section,** with `detail` = `<section>/<action>`. For
+      example, `cms_api/save` when one CMS API setting changed.
+    - The hooks get the same context as the functions: `account: null`, `installId`, `scope` and
+      `trackerId`.
+  - **The webhook function (`debug_webhook`) gets normal HTTP headers** (2026-10-21), unlike
+    `debug_backend`, which gets none. So `accepts: cms_ui_extension` calls don't arrive as HTTP
+    requests at all.
+    - A `curl` POST reached the Inbox with `host: function.zaius.app`, `content-type`,
+      `user-agent`, `x-request-id` and the client's public IP in `x-forwarded-for`.
+    - The proxy layer is Envoy/Istio: `x-envoy-*` headers, plus `x-forwarded-client-cert` naming
+      the Istio ingress gateway. `x-forwarded-proto` is `http`, because TLS ends at the gateway.
+    - **There's no authentication.** Anyone with the URL can post to it, so a real app must
+      check a shared secret or signature itself.
+    - Shell quoting matters. Run from Windows, the debugger's bash-style `curl` command arrived
+      as `'{hello:from curl again}'`: invalid JSON, with the single quotes kept and the inner
+      double quotes lost. The Inbox now also shows a PowerShell command (`Invoke-RestMethod`).
+      Sent from PowerShell 7, the body arrived as valid JSON: `{"hello":"from PowerShell"}`.
+      The `x-envoy-external-address` differed between the two calls (10.18.11.171 and
+      10.18.6.9), so requests pass through more than one gateway instance.
+    - **Outside to UI works through polling:** the request showed up in the Inbox within the
+      5 s polling interval. The webhook writes to kvStore and the extension polls it through
+      `debug_backend`.
+  - **Sandbox tests** (sidebar, dev.10, 2026-10-21):
+    - **Form submit is blocked** (no `allow-forms`). Drive saves from click and change handlers.
+    - **Popups are blocked.** `window.open` returns `null`, and no tab opened, so the sandbox has
+      no `allow-popups`. An extension can't open a new tab or window. Show links as text to
+      copy, or link to the public URL some other way.
+    - **The Clipboard API is blocked by the permissions policy** ("The Clipboard API has been
+      blocked because of a permissions policy applied to the current document"). The iframe
+      isn't granted `clipboard-write`. The debugger's copy buttons still work, through the
+      `document.execCommand('copy')` fallback in `common/clipboard.ts`, so keep that fallback.
+    - **`fetch` to Optimizely Graph from the browser works:** HTTP 401 in 31 ms, an answer that
+      can be read despite the sandbox's `null` origin. The CSP's `connect-src https:` and Graph's
+      `access-control-allow-origin: *` allow it. So an extension can query Graph directly with
+      the public single key (published content only), without going through its backend. Keep
+      the app key and secret on the backend.
   - **Containers are short-lived.** The container had started 85 s before the echo call
     (19:13:07). The 18:28 container was gone after about 45 minutes, so containers are recycled
     or scaled down quickly.
@@ -277,21 +367,21 @@ the app as account-scoped (see the Unsplash repo's CLAUDE.md).
 `common/ui.tsx`) has the same steps and a short "Found" line. Update both when a question is
 answered.
 
-1. Answered: no host methods beyond the SDK's, and no events beyond `content` (see above). Still
-   open: run the sweep inside a property editor and in the view, and retest the null-content
-   bug now that `subscribe()` seems to send the current state.
-2. Do headers reach `debug_webhook` normally? This is expected, since it's a plain HTTP function.
-   Compare it with `debug_backend`, which gets none.
-3. Does the `content` event fire when you schedule a publish or delete content? Does the
-   null-content bug also hit a view, or a property editor?
-   Does a property editor see live edits through `property` events, even though `content`
-   doesn't fire for them?
+1. Answered: no host methods beyond the SDK's, and no events beyond `content` (see above). The
+   null-content bug was retested and is still there. Still open: run the sweep inside a property
+   editor and in the view.
+2. Answered: yes, `debug_webhook` gets normal HTTP headers (see the webhook notes above).
+3. Partly answered: scheduling sends an event, and deleting only shows up as navigation (see
+   above). Still open: does the null-content bug also hit a property editor? (A view never has content, so the bug doesn't
+   apply there.) Does a property editor see live edits through `property` events, even though
+   `content` doesn't fire for them?
 4. What does `PropertyState.settings` hold, and what does `property.set()` reject for each type?
    Why is no editor offered for boolean properties (short string started working by itself
    on 2026-10-20)? Our metadata reaches OCP
    (whoami's manifest lists `property_type` and `property_format`), but the CMS's extension
    list showed `configuration: {}`.
-5. Where does the settings form appear for a CMS-scoped install?
+5. Answered (2026-10-21): the settings form is **only in the OCP App Directory**. The app shows
+   there as installed, and its settings can be edited there. The CMS has no settings UI for it.
 6. Can `/v1/content/{key}/versions` list drafts and earlier versions (a status or paging
    parameter)?
 
@@ -339,9 +429,15 @@ answered.
     `property_format` from `app.yml`. We can't tell whether the metadata reached the CMS.
   - The same list includes another app on the instance (`steve_unsplash_ui`), and gives
     `functions` only for `accepts: cms_ui_extension` functions.
-- **`ocp app prepare --publish` returns while the version is still `PUBLISHING`.** Upgrading
-  right away fails with "App version … is not running". `yarn deploy` polls
-  `ocp directory status` until the state is `PUBLISHED`.
+- **`ocp app prepare --publish` with `--no-progress` returned while the version was still
+  `BUILT`.** Upgrading right away failed with "App version … is not running". Run by hand,
+  without that flag, prepare waits until the version is published. `yarn deploy` no longer
+  passes it, and no longer polls `ocp directory status`. Confirmed with dev.11: prepare
+  watched the build (NEW → QUEUED → BUILDING), then each region in turn (us, au, eu: BUILT →
+  PUBLISHING → "has been published") before returning.
+- **Publishing a dev version moves the dev install to it, with no upgrade command.** dev.11
+  was published without `ocp directory upgrade`, and `list-installs` showed the install on
+  dev.11 as soon as prepare returned. The extra upgrade was what made the hooks run twice.
 
 - **`@shared/*` must be bundled into the backend.** The sample's `vite.backend.config.mjs`
   marks every bare import as external, and that includes the `@shared/` alias. The backend

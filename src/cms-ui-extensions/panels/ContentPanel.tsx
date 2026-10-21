@@ -24,6 +24,20 @@ const CONTENT_BY_KEY = `query ContentByKey($key: String!) {
   }
 }`;
 
+/** The exact version and language the editor has open, not every version of the key. */
+const CONTENT_VERSION = `query ContentVersion($key: String!, $locale: String!, $version: String!) {
+  _Content(where: { _metadata: { key: { eq: $key }, locale: { eq: $locale }, version: { eq: $version } } }) {
+    total
+    items {
+      _metadata {
+        key locale version displayName types status
+        published lastModified
+        url { default hierarchical base }
+      }
+    }
+  }
+}`;
+
 export function ContentPanel({events}: {events: ContentEvent[]}) {
   const {context, content} = useDebug();
   const [snapshot, setSnapshot] = useState<unknown>(undefined);
@@ -54,7 +68,7 @@ export function ContentPanel({events}: {events: ContentEvent[]}) {
             'The first entry comes from get() when the extension loads; the rest from subscribe(). Each entry has key, version, locale and public URL, but no status.',
           report: '"Copy events" below, plus a line saying what you did between the entries.',
           found:
-            'Events on navigation (pages, older versions and blocks), "Ready to publish", "Publish" and the first edit after a publish (new version). None for edits inside a draft. Blocks have no public URL. After a full reload, get() and the first subscribe() event are both null until you navigate (CMS bug).'
+            'Events on navigation (pages, older versions and blocks), "Ready to publish", "Publish", scheduling a publish, and the first edit after a publish (new version). Deleting (moving to the waste basket) sends no event of its own: only navigation to the parent, which the CMS opens. None for edits inside a draft. Blocks have no public URL. After a full reload, get() and the first subscribe() event are both null until you navigate (CMS bug).'
         }}
       >
         <Group gap="8" flexWrap="wrap">
@@ -72,25 +86,39 @@ export function ContentPanel({events}: {events: ContentEvent[]}) {
         title="Look up this content"
         guide={{
           why: 'The CMS only sends key, version and locale. To know the status, type or property values, the backend has to look the content up. Needs Graph and CMS API keys in the app settings.',
-          steps: ['Open a page that has a draft.', 'Click each of the three buttons.'],
+          steps: ['Open a page that has a draft, and one that has never been published.', 'Click each button.'],
           expect:
-            'Graph (app key) lists every version in every locale with a status (Published, Draft, Previous). Graph (single key) lists only the published ones. The CMS API returns item metadata: type, parent, created and modified by, locales.',
+            '"This version" returns the one version and language the editor has open, with its status. "All versions" lists every version in every locale. "Published" (single key) lists only published versions, so it is empty for a page never published. The CMS API returns item metadata: type, parent, created and modified by, locales.',
           report: 'The Copy button on each result.',
-          found: 'All three work. Graph shows a publish within about 12 s. Only Graph with the app key tells you the status of the version in a content event.'
+          found:
+            'Graph shows a publish within about 12 s. Only the app key tells you the status of the version in a content event. A never-published page returns nothing with the single key (no error, total 0), and Draft with published: null with the app key.'
         }}
       >
         <Group gap="8" flexWrap="wrap">
           <Button
+            appearance="primary"
+            disabled={!key || !content?.locale || !content?.version}
+            onClick={() =>
+              void graph.run('graphQuery', {
+                query: CONTENT_VERSION,
+                variables: {key, locale: content?.locale, version: content?.version},
+                auth: 'basic'
+              })
+            }
+          >
+            Graph: this version (app key)
+          </Button>
+          <Button
             disabled={!key}
             onClick={() => void graph.run('graphQuery', {query: CONTENT_BY_KEY, variables: {key}, auth: 'basic'})}
           >
-            Graph (app key, drafts)
+            Graph: all versions (app key)
           </Button>
           <Button
             disabled={!key}
             onClick={() => void graph.run('graphQuery', {query: CONTENT_BY_KEY, variables: {key}, auth: 'single'})}
           >
-            Graph (single key)
+            Graph: published (single key)
           </Button>
           <Button disabled={!key} onClick={() => void rest.run('cmsRequest', {method: 'GET', path: `/v1/content/${key}`})}>
             CMS API /v1/content/{'{key}'}
