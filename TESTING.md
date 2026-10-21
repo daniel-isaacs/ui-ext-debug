@@ -95,6 +95,9 @@ API are blocked. Direct `fetch` to Graph works.
    489 appears, with its draft property values.
 4. ~~Find the smallest right that shows drafts.~~ Done 2026-10-21: Read alone doesn't. Any
    other right on its own does (Create is the least).
+5. Blocked: `act_as` (acting as an editor with a Read-only key). The token endpoint says the
+   client isn't authorized, and the impersonation checkbox is gone from the API key UI. Retry
+   when the CMS team answers.
 
 ## 8. Property editors
 

@@ -517,7 +517,13 @@ answered.
   auth. It uses a form body (`grant_type=client_credentials`) normally, and a JSON body when
   `act_as` is set. With the JSON body, Basic auth is ignored: the endpoint returned
   400 `"client_id is required."` until `client_id` and `client_secret` were also put in the body
-  (fixed 2026-10-21, dev.12). Tokens last about 5 minutes and are cached per container.
+  (fixed 2026-10-21, dev.12). After that fix, the endpoint answers 400 `"Client is not
+  authorized to act as another user."` for a key without impersonation rights. So impersonation
+  is a separate permission on the API key. Earlier CMS versions had an "impersonation" checkbox
+  on API keys. As of 2026-10-21 it's gone from the UI, so `act_as` can't be enabled at the
+  moment (asked the CMS team). While `act_as` is set and not allowed, every CMS API
+  call fails, so clear it to get back to normal. Tokens last about 5 minutes and are cached per
+  container.
 - **`cmsRequest` and `graphQuery` only call the configured base URL or endpoint.** Keep it that
   way, so the backend can't be used as an open proxy.
 - The bridge "guessed methods" sweep is read-only by design. Don't add methods that change
