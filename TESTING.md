@@ -83,12 +83,18 @@ API are blocked. Direct `fetch` to Graph works.
 3. ~~After a delete, does `GET /v1/content/{deleted key}` show the waste basket?~~ Done
    2026-10-21: no, it returns 404, and Graph (app key) returns nothing for it either.
 
-## 7. CMS REST versions (2 min)
+## 7. CMS REST versions
 
-**CMS API → Request:**
-1. Use the "This content, versions" preset.
-2. Add `?statuses=draft`, then `?locale=en`.
-3. **Collect:** the status badge and item count for each.
+**CMS API → Request**, with the "This content, versions" preset:
+1. ~~Plain, `?statuses=draft` and `?locale=en`.~~ Done 2026-10-21: plain returns only
+   published versions; `statuses=draft` returns nothing (so the filter exists); `locale=en` is
+   ignored.
+2. ~~Per the API reference, try `?locales=en&statuses=draft` and `?statuses=published`.~~ Done
+   2026-10-21: the filters work, but the API key sees no drafts.
+3. ~~Give the API key more rights and repeat.~~ Done 2026-10-21: with admin rights, draft
+   489 appears, with its draft property values.
+4. ~~Find the smallest right that shows drafts.~~ Done 2026-10-21: Read alone doesn't. Any
+   other right on its own does (Create is the least).
 
 ## 8. Property editors
 

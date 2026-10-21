@@ -27,6 +27,8 @@ async function requestToken(settings: CmsSettings): Promise<{token: string; expi
     throw new ConfigError('cms_not_configured', 'Add a CMS API client ID and secret in the app settings.');
   }
   // The docs show a form body for plain client credentials and a JSON body when impersonating.
+  // With the JSON body the endpoint ignores Basic auth and returns 400 "client_id is required",
+  // so the credentials go in the body as well.
   const basic = Buffer.from(`${settings.clientId}:${settings.clientSecret}`).toString('base64');
   const response = await fetch(`${settings.baseUrl}/oauth/token`, {
     method: 'POST',
@@ -36,7 +38,12 @@ async function requestToken(settings: CmsSettings): Promise<{token: string; expi
       accept: 'application/json'
     },
     body: settings.actAs
-      ? JSON.stringify({grant_type: 'client_credentials', act_as: settings.actAs})
+      ? JSON.stringify({
+          grant_type: 'client_credentials',
+          client_id: settings.clientId,
+          client_secret: settings.clientSecret,
+          act_as: settings.actAs
+        })
       : new URLSearchParams({grant_type: 'client_credentials'}).toString(),
     signal: AbortSignal.timeout(15_000)
   });

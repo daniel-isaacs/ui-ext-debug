@@ -25,13 +25,13 @@ const PRESETS: Record<string, string> = {
   'This content': `query ContentByKey($key: String!) {
   _Content(where: { _metadata: { key: { eq: $key } } }) {
     total
-    items { _metadata { key displayName types locale version status published lastModified url { default hierarchical } } }
+    items { _metadata { key displayName types locale version status published lastModified url { default hierarchical base } } }
   }
 }`,
   'This version': `query ContentVersion($key: String!, $locale: String!, $version: String!) {
   _Content(where: { _metadata: { key: { eq: $key }, locale: { eq: $locale }, version: { eq: $version } } }) {
     total
-    items { _metadata { key displayName types locale version status published lastModified url { default hierarchical } } }
+    items { _metadata { key displayName types locale version status published lastModified url { default hierarchical base } } }
   }
 }`,
   'Count by type': `{
@@ -57,6 +57,8 @@ export function GraphPanel() {
       'This version': current
     };
     setVariables(name in variables ? JSON.stringify(variables[name], null, 2) : '');
+    // The open content is often a draft, which only the app key can see.
+    if (name in variables) setAuth('basic');
   };
 
   const send = () => {
@@ -76,8 +78,8 @@ export function GraphPanel() {
         guide={{
           why: 'Graph is the fastest way for a backend to look up content. Which key you use decides what you see. Queries run through the backend with the keys from the app settings.',
           steps: [
-            'Pick "This content" (fills in the open content key).',
-            'Run it with each of the three auth options.'
+            'Pick "This version" or "This content". They fill in the open content and switch to the app key, since drafts need it.',
+            'Run it, then try the other auth options.'
           ],
           expect: 'Single key: published versions only. App key + secret: every version with its status. CMS API token: rejected.',
           report: 'The status badge and the item count (total).',

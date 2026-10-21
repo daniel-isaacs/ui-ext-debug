@@ -215,8 +215,14 @@ the app as account-scoped (see the Unsplash repo's CLAUDE.md).
   - **Look up the exact version from a `content` event** by filtering on `key`, `locale` and
     `version` together: `_metadata: {key: {eq}, locale: {eq}, version: {eq}}`. The Content tab
     ("Graph: this version") and the Graph tab ("This version" preset) do this from dev.11.
-    Filtering on the key alone returns every version in every language. Untested yet:
-    whether Graph accepts the `version` filter.
+    Filtering on the key alone returns every version in every language. **Graph accepts the
+    `version` filter** (confirmed 2026-10-21): it returned exactly one item, `total: 1`. Each
+    filter adds 2 to the query cost (36 with three filters, against 32 with one).
+    - **For a draft, use the app key.** The single key returns `total: 0` for a draft version.
+      The app key returns it with `status: "Draft"`.
+    - **`published` on a draft is the item's publish date,** not the version's. Draft 489
+      showed `published: 2026-05-22`, the date of an earlier published version. Use `status`
+      to tell drafts from published versions, not `published`.
   - Limits: `x-ratelimit-limit: 2500` per 10 s window. The response's `extensions.cost`
     gives each query's cost (33 for this one).
 - **Graph rejects the CMS API token as a bearer.** It returns `401 AUTHENTICATION_ERROR` with
@@ -472,11 +478,46 @@ answered.
   `/v1/content/{key}/versions` also works (about 900 ms). By default it returns only the
   **published** version in each locale, each with all its `properties` (rich text as `html`,
   references as `cms://content/<key>`), `status` (lowercase, `"published"`), `routeSegment`,
-  `published` and `lastModifiedBy`. It's paged with `pageIndex` and `pageSize` (100). We
-  haven't found how to list drafts or earlier versions; Graph with basic auth shows them. The
+  `published` and `lastModifiedBy`. It's paged with `pageIndex` and `pageSize` (100).
+  Query parameters, tested 2026-10-21:
+  - **`?statuses=draft` is applied, but returns nothing:** `items: []`, although Graph (app key)
+    shows draft 489 for the same key. So `statuses` is a real filter, since unknown parameters
+    are ignored. Either draft versions aren't served here, our API key lacks the right to see
+    them, or the value has another name.
+  - **`?locale=en` is ignored:** all three locales came back.
+  - **The API reference gives the syntax:** `?locales=fr,de&statuses=draft,ready`. So the
+    locale parameter is the plural `locales`, both take comma-separated lists, and "ready to
+    publish" is `ready`. That `statuses=draft` still returned nothing is unexplained so far.
+  - **`?statuses=published` returns the same three published versions,** and
+    `?locales=en&statuses=draft` returns nothing. So the filters work, but **this API key sees
+    no drafts at all.** Draft 489 exists: Graph with the app key shows it.
+  - **It was a permission.** After the API key was given admin rights in the CMS, the same
+    `?locales=en&statuses=draft,ready` returned draft 489 (`status: "draft"`), including the
+    draft's property values (`TestPropertyString: "Wow!?!"` against `"Wow!"` in the published
+    version 488).
+  - **The token doesn't carry content rights.** Before and after the change, the token claims
+    were the same:
+    - `scope: "api:admin"` (which API calls are allowed);
+    - `sub` and `name` = the client ID;
+    - `instanceId` = the CMS instance UUID, and `siteUrl` = the CMS host;
+    - `iss` and `aud` = `opti-content-api`, HS256, a 5-minute lifetime.
+
+    What changed was the key's access rights in the CMS, which the CMS checks on each request.
+    That's why a cached token picked up the change at once.
+  - **Without the permission, the API says nothing:** it returns 200 with `items: []`, not 403.
+    An app can't tell "no drafts" from "not allowed to see drafts".
+  - **Which access rights show drafts** (each right tested on its own, 2026-10-21):
+    - The rights on offer are Read, Create, Change, Delete, Publish and Administer.
+    - **Read alone shows only published versions.** Every other right on its own (Create,
+      Change, Delete, Publish, Administer) also shows drafts.
+    - So a backend that only needs to *read* drafts must hold a right that also lets it
+      write. Create is the least of them, and it still allows creating content. There's no
+      read-only way to see drafts. `act_as` is untested. The
   token comes from `<base>/oauth/token` with Basic
   auth. It uses a form body (`grant_type=client_credentials`) normally, and a JSON body when
-  `act_as` is set. Tokens last about 5 minutes and are cached per container.
+  `act_as` is set. With the JSON body, Basic auth is ignored: the endpoint returned
+  400 `"client_id is required."` until `client_id` and `client_secret` were also put in the body
+  (fixed 2026-10-21, dev.12). Tokens last about 5 minutes and are cached per container.
 - **`cmsRequest` and `graphQuery` only call the configured base URL or endpoint.** Keep it that
   way, so the backend can't be used as an open proxy.
 - The bridge "guessed methods" sweep is read-only by design. Don't add methods that change
