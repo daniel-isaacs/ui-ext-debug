@@ -41,8 +41,9 @@ and upgrades your install. It reads the CMS instance UUID from `OCP_SCOPE` or fr
 
 In the app settings you can optionally add:
 
-- **CMS REST API**: client ID and secret of a CMS API key (Settings → API Keys), and optionally a
-  user to impersonate (`act_as`).
+- **CMS REST API**: client ID and secret of a CMS API key (Settings → API Keys). To read drafts,
+  the key needs an access right beyond Read. The backend always acts as the app: impersonation
+  isn't available for API keys.
 - **Optimizely Graph**: the single key, and/or the app key and secret to also read drafts.
 
 Without these, the CMS API and Graph tabs report "not configured". Everything else works.

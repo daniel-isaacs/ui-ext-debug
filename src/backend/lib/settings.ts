@@ -5,7 +5,6 @@ export interface CmsSettings {
   baseUrl: string;
   clientId: string;
   clientSecret: string;
-  actAs: string;
 }
 
 export interface GraphSettings {
@@ -28,8 +27,7 @@ export async function loadCmsSettings(): Promise<CmsSettings> {
   return {
     baseUrl: trimSlash(str(raw.baseUrl) || DEFAULT_CMS_BASE_URL),
     clientId: str(raw.clientId),
-    clientSecret: str(raw.clientSecret),
-    actAs: str(raw.actAs)
+    clientSecret: str(raw.clientSecret)
   };
 }
 
@@ -51,8 +49,7 @@ export async function settingsSummary() {
     cms_api: {
       baseUrl: cms.baseUrl,
       clientId: cms.clientId || null,
-      clientSecretSet: Boolean(cms.clientSecret),
-      actAs: cms.actAs || null
+      clientSecretSet: Boolean(cms.clientSecret)
     },
     graph: {
       endpoint: graph.endpoint,

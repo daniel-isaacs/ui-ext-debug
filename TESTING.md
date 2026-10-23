@@ -30,8 +30,8 @@ Finished tests are ~~struck through~~. Their results are in CLAUDE.md.
 1. ~~**Sidebar:** "Try 14 guessed methods", and subscribe to every suggested event.~~ Done
    2026-10-20: only the SDK's methods answer, and only `content` produces events.
 2. ~~Retest the reload bug.~~ Done 2026-10-20: still there.
-3. Run "Try 14 guessed methods" in the **view** and in a **property editor**. **Collect:** "Copy
-   results" from each.
+3. ~~Run "Try 14 guessed methods" in the **view** and in a **property editor**.~~ Done
+   2026-10-23: the same three methods everywhere. Only the data differs.
 
 ## 2. Backend transport limits
 
@@ -42,19 +42,20 @@ the start of the result:
 | --- | --- | --- |
 | ~~Echo~~ | ~~default~~ | Done: unicode survives, but object keys come back sorted |
 | ~~Return N KB~~ | ~~256, 1024, 4000, 4096~~ | Done: the limit is 4 MiB |
-| Sleep N ms | ~~3000, 30000, 55000, 65000~~ | Done: 65 s fails at 59.3 s with "Failed to invoke function:". Still open: did the function finish (check `ocp app logs`)? |
+| ~~Sleep N ms~~ | ~~3000, 30000, 55000, 65000~~ | Done: 65 s fails at about 59.3 s, but the function keeps running and finishes at 65 s |
 | ~~Return HTTP status~~ | ~~418, 500~~ | Done: status and JSON body arrive unchanged |
 | ~~Throw (caught)~~ | | Done: 500 with the JSON body (the function catches it) |
 | ~~Throw (uncaught)~~ | | Done: no status. The call rejects with "Failed to invoke function:", like a timeout |
-| OCP notification | | Where does it show up, if anywhere? |
+| ~~OCP notification~~ | | Done: in OCP → Settings → History → Activity Log. Not in the CMS, `ocp app logs` or the Event Inspector |
 
 ## 3. Shared state and lifecycle (3 min)
 
 1. ~~**Backend → Shared state:** Write in the sidebar, then Read in the view.~~ Done
    2026-10-21: works, and the value survives for hours and across containers.
 2. ~~**Backend → Lifecycle log:** load it, save the app settings, load it again.~~ Done
-   2026-10-21: upgrades run onUpgrade → onFinalizeUpgrade → onAfterUpgrade, sometimes twice
-   per deploy. Settings saves run onSettingsForm once per section.
+   2026-10-21: upgrades run onUpgrade → onFinalizeUpgrade → onAfterUpgrade. Settings saves
+   run onSettingsForm once per section. Rechecked 2026-10-23: without the explicit upgrade,
+   dev.11 and dev.12 each ran the hooks once.
 3. ~~Note where you found the settings form.~~ Done 2026-10-21: only in the OCP App
    Directory, not in the CMS.
 
@@ -95,9 +96,9 @@ API are blocked. Direct `fetch` to Graph works.
    489 appears, with its draft property values.
 4. ~~Find the smallest right that shows drafts.~~ Done 2026-10-21: Read alone doesn't. Any
    other right on its own does (Create is the least).
-5. Blocked: `act_as` (acting as an editor with a Read-only key). The token endpoint says the
-   client isn't authorized, and the impersonation checkbox is gone from the API key UI. Retry
-   when the CMS team answers.
+5. ~~`act_as` (acting as an editor with a Read-only key).~~ Closed 2026-10-22: impersonation
+   isn't available for API keys. The CMS team plans scoped keys combined with the user's own
+   Opti ID token instead.
 
 ## 8. Property editors
 
@@ -110,12 +111,15 @@ CLAUDE.md).
    2026-10-20, with no change on our side). Still open: why not for boolean.
 2. ~~Check that `set()` updates the input.~~ Done: the CMS doesn't echo it back, so the editor
    updates itself (dev.8).
-3. Unfold "▸ UI Extension Debugger" and open **Property**. **Collect:** the "settings" section
-   ("Copy settings"), then change the property's settings in the content type (required,
-   help text, limits), reload, and collect it again.
-4. **Property → Write a raw value:** try `"text"`, `42`, `true` and `null`. **Collect:** the
-   `set()` result for each.
-5. **Bridge** in the property editor: "Try 14 guessed methods". **Collect:** "Copy results".
+3. ~~Collect `settings` before and after changing the property's settings.~~ Done 2026-10-23:
+   always `{}`, and `readonly` works for non-localized properties in another language.
+4. ~~**Property → Write a raw value:** `"text"`, `42`, `true`, `null`.~~ Done 2026-10-23:
+   strings and `null` succeed. `42` and `true` make the CMS show a "could not save, reverted"
+   popup with a .NET error, yet `set()` returned `success: true` for both. The revert works:
+   the previous value comes back when the popup is closed. `set(null)` was echoed through
+   `subscribe()`; `set("Value 2")` wasn't.
+5. ~~**Bridge** in the property editor: "Try 14 guessed methods".~~ Done 2026-10-23: the same
+   three methods as the sidebar, and `property.get` is bound. Nothing names the property.
 
 ## Already answered
 

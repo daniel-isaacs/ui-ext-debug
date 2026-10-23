@@ -26,25 +26,15 @@ async function requestToken(settings: CmsSettings): Promise<{token: string; expi
   if (!settings.clientId || !settings.clientSecret) {
     throw new ConfigError('cms_not_configured', 'Add a CMS API client ID and secret in the app settings.');
   }
-  // The docs show a form body for plain client credentials and a JSON body when impersonating.
-  // With the JSON body the endpoint ignores Basic auth and returns 400 "client_id is required",
-  // so the credentials go in the body as well.
   const basic = Buffer.from(`${settings.clientId}:${settings.clientSecret}`).toString('base64');
   const response = await fetch(`${settings.baseUrl}/oauth/token`, {
     method: 'POST',
     headers: {
       authorization: `Basic ${basic}`,
-      'content-type': settings.actAs ? 'application/json' : 'application/x-www-form-urlencoded',
+      'content-type': 'application/x-www-form-urlencoded',
       accept: 'application/json'
     },
-    body: settings.actAs
-      ? JSON.stringify({
-          grant_type: 'client_credentials',
-          client_id: settings.clientId,
-          client_secret: settings.clientSecret,
-          act_as: settings.actAs
-        })
-      : new URLSearchParams({grant_type: 'client_credentials'}).toString(),
+    body: new URLSearchParams({grant_type: 'client_credentials'}).toString(),
     signal: AbortSignal.timeout(15_000)
   });
   const text = await response.text();
@@ -60,7 +50,7 @@ async function requestToken(settings: CmsSettings): Promise<{token: string; expi
 
 export async function getCmsToken(): Promise<{token: string; report: TokenReport}> {
   const settings = await loadCmsSettings();
-  const cacheKey = `${settings.baseUrl}|${settings.clientId}|${settings.actAs}`;
+  const cacheKey = `${settings.baseUrl}|${settings.clientId}`;
   const tokenEndpoint = `${settings.baseUrl}/oauth/token`;
 
   if (cached && cached.cacheKey === cacheKey && cached.expiresAt - 30_000 > Date.now()) {

@@ -276,8 +276,14 @@ the app as account-scoped (see the Unsplash repo's CLAUDE.md).
       60 s. Keep calls well under that.
     - **An extension can't tell a timeout from a too-large response,** or from any other
       platform failure: all give the same empty error.
-    - **Still open:** did the function keep running after the cut-off? Look in
-      `ocp app logs` for `debug_backend sleep finished 65000 ms` (logged from dev.10).
+    - **The function keeps running after the cut-off** (retested 2026-10-23, dev.12). The
+      extension got the error after 59,277 ms. The server log shows the sleep starting at
+      16:00:06.414 and `sleep finished 65000 ms` at 16:01:11.418. So when the extension gives
+      up, the backend isn't stopped. A slow write can still complete after the user saw an
+      error, so long-running backend work must be safe to retry, or must report its result
+      some other way (for example kvStore plus polling).
+    - The same log had two `whoami invocation 1` lines 19 ms apart. Two frames loaded at once
+      (the sidebar and a property editor), and each got a fresh container.
   - **Return HTTP status:**
     - **418:** reaches the extension unchanged. `statusCode` is 418, and the JSON body (the error
       envelope) arrives whole. The call doesn't reject. Round trip 635 ms. So status codes and
@@ -310,6 +316,11 @@ the app as account-scoped (see the Unsplash repo's CLAUDE.md).
         `ocp directory upgrade` then runs the hooks again, from a version to itself.
       - The dev.6 deploy (14:12) ran the whole sequence **twice at the same time**, both "from
         dev.5", interleaved.
+      - **Confirmed (2026-10-23):** without the explicit upgrade, dev.11 and dev.12 each logged
+        exactly **one** run ("from dev.10" and "from dev.11"). So the sequential double runs
+        came from our extra `ocp directory upgrade`. The concurrent pair on dev.6 is still
+        unexplained, so keep the hooks idempotent anyway.
+    - `onSettingsForm` also logs the "Save and test" button, as `cms_api/test`.
     - **`onSettingsForm` runs once per saved section,** with `detail` = `<section>/<action>`. For
       example, `cms_api/save` when one CMS API setting changed.
     - The hooks get the same context as the functions: `account: null`, `installId`, `scope` and
@@ -346,6 +357,18 @@ the app as account-scoped (see the Unsplash repo's CLAUDE.md).
       `access-control-allow-origin: *` allow it. So an extension can query Graph directly with
       the public single key (published content only), without going through its backend. Keep
       the app key and secret on the backend.
+  - **OCP notifications go to the OCP Activity Log, not the CMS** (2026-10-23, CMS-scoped
+    install). `notifications.info('UI Extension Debugger', 'Debugger notification', message)`
+    appears under OCP → Settings (cogwheel) → History → **Activity Log**:
+    - status: an "i" for info;
+    - category: the app ID (`steve_ui_ext_debug`);
+    - activity: the first argument ("UI Extension Debugger");
+    - details: title plus summary. "View Details" shows the same in a popup.
+
+    It doesn't appear in `ocp app logs`, in the Event Inspector, or anywhere in the CMS. So
+    notifications reach whoever administers the OCP account, never the editor. Use them for
+    install-level problems (a failing background job, an expired key), and use the extension
+    UI for anything the editor should see.
   - **Containers are short-lived.** The container had started 85 s before the echo call
     (19:13:07). The 18:28 container was gone after about 45 minutes, so containers are recycled
     or scaled down quickly.
@@ -374,8 +397,8 @@ the app as account-scoped (see the Unsplash repo's CLAUDE.md).
 answered.
 
 1. Answered: no host methods beyond the SDK's, and no events beyond `content` (see above). The
-   null-content bug was retested and is still there. Still open: run the sweep inside a property
-   editor and in the view.
+   null-content bug was retested and is still there. The sweep gave the same result in the
+   sidebar, the view and a property editor.
 2. Answered: yes, `debug_webhook` gets normal HTTP headers (see the webhook notes above).
 3. Partly answered: scheduling sends an event, and deleting only shows up as navigation (see
    above). Still open: does the null-content bug also hit a property editor? (A view never has content, so the bug doesn't
@@ -418,6 +441,51 @@ answered.
   Nothing a property editor does shows in the sidebar's Bridge tab. In the sidebar,
   `context.property` is unbound (empty and read-only), so the CMS bridge can't set another
   frame's property.
+- **`PropertyState`, tested 2026-10-23 (string property, dev.12):**
+    - **`settings` is always `{}`.** It stayed empty after the property got a max length, was
+      made required, got a default value and more in Settings → Content Types. The editor
+      learns nothing about the property's configuration, so it can't enforce limits or show
+      that a field is required.
+    - **A new property's `value` is `null`,** even with a default value set in the content type.
+      The default doesn't show up in the editor for existing content.
+    - **`readonly` works.** The property isn't localized. In another language, the editor got
+      `{value: "AS", readonly: true}`, which is the shared value, marked read-only.
+- **`property.set()` with raw values on a string property** (2026-10-23):
+    - `"Value 2"` → `{success: true}`, and the input shows it.
+    - `null` → `{success: true}`, and the value is cleared.
+    - `42` and `true` → **the CMS shows its own popup**, outside the iframe: "Could not save
+      property, and it has been reverted. Please try again." with the raw .NET error ("The
+      JSON value could not be converted to System.String … token type 'Number' / 'True'").
+      So the CMS doesn't validate the type before saving, and it shows the server error to the
+      editor.
+    - **`set()` returned `{success: true}` for `42` and `true`,** before the popup appeared. So
+      `success` only means the CMS editor accepted the value. It says nothing about whether
+      the save worked.
+    - **The revert works.** Tested with `"Before"`, then `set(42)`: while the popup was open,
+      our textbox was empty (our sync applied the "successful" non-string value). When the
+      editor clicked OK, `"Before"` came back into the textbox, and a reload showed `"Before"`
+      as the stored value. So the CMS hands the reverted value back to the editor, either
+      through `subscribe()` or by remounting it; the Property events list would show which.
+    - **`subscribe()` did fire for `set(null)`,** once per write (the two `null` events at
+      14:12:01 and 14:13:12 were two `null` writes), but not for `set("Value 2")`. So the echo
+      is inconsistent: a cleared value comes back, a string value doesn't.
+- **The view's bridge has the same methods too** (2026-10-23, dev.12): `content.get` returns
+  `null`, `property.get` returns `{readonly: true}`, and the other 11 guesses are "Unknown
+  method". All three surfaces share one host API. Only the data differs: content for the
+  sidebar and property editors, and a bound property for property editors only.
+- **A property editor's bridge has the same methods as the sidebar's** (2026-10-23, dev.12).
+  `extension.getDefinition`, `content.get` and `property.get` answer, and the other 11 guesses
+  are "Unknown method". There's nothing extra for editors.
+  - The definition `type` is `"property-editor"`.
+  - `content.get` gives the page, including `publicUrl`.
+  - `property.get` is bound (`{value, readonly, settings}`), unlike the sidebar's
+    `{readonly: true}`.
+  - **The editor isn't told which property it edits.** The definition, the `PropertyState`
+    and the content state carry no property name or display name. An editor used on several
+    properties can't tell them apart.
+- **The reload bug also hits property editors.** After a full page reload, the editor's
+  `context.content` had no key or locale until the user navigated in the page tree, the same as
+  the sidebar.
 - **The property editor iframe has a fixed height.** The shell pins the editor at the top and
   scrolls only the debugger. It uses its own toggle and scroll box, not Axiom's `Disclosure`.
   `DisclosureContent` puts the content in wrappers with `overflow: hidden` and no height limit,
@@ -441,6 +509,12 @@ answered.
   passes it, and no longer polls `ocp directory status`. Confirmed with dev.11: prepare
   watched the build (NEW → QUEUED → BUILDING), then each region in turn (us, au, eu: BUILT →
   PUBLISHING → "has been published") before returning.
+- **`ocp app prepare` can fail with "Terminal is not capable"** when it isn't run in a real
+  interactive terminal (2026-10-23). Its progress spinner (terminal-kit) asks the terminal for
+  the cursor position, and that fails when the output is piped, for example from a tool or CI.
+  Setting `TERM` doesn't help. It failed after bumping `app.yml` and before uploading, so reset
+  the version (`git checkout -- app.yml`) before retrying. Run `yarn deploy` from your own
+  terminal. Earlier piped runs (dev.11, dev.12) did work, so it may depend on the host.
 - **Publishing a dev version moves the dev install to it, with no upgrade command.** dev.11
   was published without `ocp directory upgrade`, and `list-installs` showed the install on
   dev.11 as soon as prepare returned. The extra upgrade was what made the hooks run twice.
@@ -512,18 +586,26 @@ answered.
       Change, Delete, Publish, Administer) also shows drafts.
     - So a backend that only needs to *read* drafts must hold a right that also lets it
       write. Create is the least of them, and it still allows creating content. There's no
-      read-only way to see drafts. `act_as` is untested. The
-  token comes from `<base>/oauth/token` with Basic
-  auth. It uses a form body (`grant_type=client_credentials`) normally, and a JSON body when
-  `act_as` is set. With the JSON body, Basic auth is ignored: the endpoint returned
-  400 `"client_id is required."` until `client_id` and `client_secret` were also put in the body
-  (fixed 2026-10-21, dev.12). After that fix, the endpoint answers 400 `"Client is not
-  authorized to act as another user."` for a key without impersonation rights. So impersonation
-  is a separate permission on the API key. Earlier CMS versions had an "impersonation" checkbox
-  on API keys. As of 2026-10-21 it's gone from the UI, so `act_as` can't be enabled at the
-  moment (asked the CMS team). While `act_as` is set and not allowed, every CMS API
-  call fails, so clear it to get back to normal. Tokens last about 5 minutes and are cached per
-  container.
+      read-only way to see drafts.
+- **The CMS API token** comes from `<base>/oauth/token` with Basic auth and a form body
+  (`grant_type=client_credentials`). Tokens last about 5 minutes and are cached per container.
+- **Impersonation (`act_as`) isn't available for API keys, so don't design around it.**
+  - The token endpoint answers 400 `"Client is not authorized to act as another user."`.
+    The option to allow it on an API key is no longer in the UI.
+  - **The CMS team's plan** (2026-10-22):
+    - Acting as a user will use the standard **OAuth token exchange** with the user's Opti ID
+      token, so the user must really be logged in. That work has been **deprioritized and
+      isn't expected soon**, and it doesn't cover the OCP UI-extension case yet.
+    - **Scopes for API keys may come first.** They would limit which REST API areas a key can
+      reach, even without acting as a user.
+    - The preview3 API, where `act_as` took a free-text user name, is due to be removed.
+  - **What that means for extensions:** today an extension backend always acts as the app,
+    never as the editor. And extensions have no way to get the editor's token: the bridge
+    offers none, and the backend receives no headers.
+  - **The debugger no longer supports `act_as`** (removed 2026-10-22): no settings field, and no
+    `act_as` token request. If it comes back, note that the `act_as` token request takes a JSON
+    body, and Basic auth is ignored there. `client_id` and `client_secret` must be in the body,
+    or the endpoint answers 400 `"client_id is required."`.
 - **`cmsRequest` and `graphQuery` only call the configured base URL or endpoint.** Keep it that
   way, so the backend can't be used as an open proxy.
 - The bridge "guessed methods" sweep is read-only by design. Don't add methods that change

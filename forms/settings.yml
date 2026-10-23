@@ -6,6 +6,7 @@ sections:
         text: >-
           Optional. Create an API key in the CMS under Settings > API Keys and paste the client ID and secret here.
           The debugger uses it to call the CMS REST API and shows the decoded token claims.
+          To read drafts, give the key an access right beyond Read (Create or higher).
       - type: text
         key: baseUrl
         label: Base URL
@@ -19,12 +20,6 @@ sections:
         key: clientSecret
         label: Client Secret
         help: Client secret of the same API key.
-      - type: text
-        key: actAs
-        label: Act as (optional)
-        help: >-
-          A CMS user name or email to impersonate (the act_as token parameter).
-          The API key must have impersonation enabled.
       - type: button
         label: Save
         action: save

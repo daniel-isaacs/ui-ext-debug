@@ -52,7 +52,7 @@ export function BackendPanel() {
           expect:
             'Echo returns æøå 🐞 intact. Large payloads and long sleeps succeed up to some limit. Any status and body the function returns arrives unchanged. A returned status and body arrive unchanged.',
           found:
-            'Responses up to just under 4 MiB work; 4096 KB fails with "Failed to invoke function:". 55 s sleeps work; 65 s fails at about 59 s with the same empty error. 418 and a caught 500 arrive with their JSON body. An uncaught exception gives no status, only the same "Failed to invoke function:" error: always catch in perform(). Overhead is 200 to 650 ms per call.',
+            'Responses up to just under 4 MiB work; 4096 KB fails with "Failed to invoke function:". 55 s sleeps work; 65 s fails at about 59 s with the same error, yet the function keeps running and finishes. 418 and a caught 500 arrive with their JSON body. An uncaught exception gives no status, only the same "Failed to invoke function:" error: always catch in perform(). OCP notifications land in OCP → Settings → History → Activity Log, not in the CMS. Overhead is 200 to 650 ms per call.',
           report: 'For each test: the badges (HTTP status, round trip) and the first lines of the result. The Copy button gives the whole thing.'
         }}
       >
@@ -107,7 +107,7 @@ export function BackendPanel() {
           steps: ['Click Load lifecycle log.', 'Save the app settings once, then load it again.'],
           expect: 'onInstall from the first install, onUpgrade for each deploy (from the previous version), onSettingsForm for each save.',
           found:
-            'Upgrades run onUpgrade → onFinalizeUpgrade → onAfterUpgrade, sometimes twice per deploy (once even concurrently), so hooks must be idempotent. onSettingsForm runs once per saved section ("cms_api/save").',
+            'Upgrades run onUpgrade → onFinalizeUpgrade → onAfterUpgrade, once per deploy when you only publish. An extra ocp directory upgrade runs them twice, and one deploy ran them twice concurrently, so keep hooks idempotent. onSettingsForm runs once per saved section ("cms_api/save", or "cms_api/test" for Save and test).',
           report: 'The Copy button on the result.'
         }}
       >

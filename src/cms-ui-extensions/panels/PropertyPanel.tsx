@@ -125,7 +125,9 @@ export function PropertyPanel() {
             'Change the property\'s settings in CMS Settings → Content Types (required, help text, limits), reload, and compare.'
           ],
           expect: 'Unknown. That is what this section is for.',
-          report: '"Copy settings", plus what you changed in the content type.'
+          report: '"Copy settings", plus what you changed in the content type.',
+          found:
+            'Always {} so far, even with max length, required and a default value set on the property (2026-10-23).'
         }}
       >
         {settingsEntries.length > 0 ? (
