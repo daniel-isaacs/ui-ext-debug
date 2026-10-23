@@ -71,6 +71,10 @@ the start of the result:
 ~~**Iframe → Sandbox tests → Run tests.**~~ Done 2026-10-21: forms, popups and the Clipboard
 API are blocked. Direct `fetch` to Graph works.
 
+~~**Iframe → Iframe environment.**~~ Done 2026-10-23: origin `null`, storage blocked, and a
+short permissions-policy list (no clipboard, camera, microphone, geolocation or fullscreen).
+Language, time zone and color scheme come from the browser, not the CMS.
+
 ## 6. Content events, remaining cases (5 min)
 
 **Content → Content events** (Clear the Bridge traffic first):

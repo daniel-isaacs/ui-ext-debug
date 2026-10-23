@@ -73,6 +73,14 @@ if (!args.includes('--skip-validate')) run('yarn', ['validate']);
 
 const before = appVersion();
 const installsBefore = trackersOn(before);
+// prepare asks before upgrading out-of-date OCP dependencies. Without an interactive terminal
+// that prompt crashes with "Terminal is not capable". --no-prompt isn't a fix: it answers yes, and
+// a brand-new dependency version can be quarantined by OCP's builder (BUILD_FAILED). Answer no
+// in a terminal unless the new version has been out for a while.
+if (!process.stdout.isTTY) {
+  console.log('deploy: no interactive terminal. If prepare asks a question it will crash with');
+  console.log('        "Terminal is not capable"; run `yarn deploy` from a terminal in that case.');
+}
 run('ocp', ['app', 'prepare', '--bump-dev-version', '--publish']);
 const version = appVersion();
 if (version === before) fail(`app.yml is still at ${before}; the version was not bumped.`);

@@ -369,6 +369,30 @@ the app as account-scoped (see the Unsplash repo's CLAUDE.md).
     notifications reach whoever administers the OCP account, never the editor. Use them for
     install-level problems (a failing background job, an expired key), and use the extension
     UI for anything the editor should see.
+  - **Iframe environment** (view, dev.12, 2026-10-23). What the browser allows inside an
+    extension frame:
+    - **Origin `null`:** the sandbox has no `allow-same-origin`. Reading `window.top.location`
+      is blocked, `frameElement` is `null`, and `window.name` is `null`.
+    - **Storage:** `localStorage`, `sessionStorage` and cookies all throw. `indexedDB` exists,
+      but is most likely unusable for the same reason (untested). Use the backend's kvStore.
+    - **Permissions policy:** only these features are allowed: client hints (`ch-*`),
+      `gamepad`, `picture-in-picture`, `sync-xhr`, `storage-access`, `browsing-topics`,
+      `interest-cohort`, private state tokens, `aria-notify`, `deferred-fetch-minimal` and
+      `media-playback-while-not-visible`. **Not allowed:** clipboard read and write (the API
+      exists, but `writeText` throws), camera, microphone, geolocation, fullscreen, payment,
+      screen capture, USB and the like.
+    - **`crossOriginIsolated: false`,** so no `SharedArrayBuffer` or high-resolution timers.
+    - **What an extension can learn about the editor comes from the browser, not the CMS:**
+      - `navigator.language` (here `en-US`), and `Intl`'s default locale (here `nb`,
+        which follows the OS);
+      - the time zone (`Europe/Oslo`);
+      - `prefers-color-scheme` (here `dark`, which is the OS or browser setting, not
+        necessarily the CMS theme);
+      - screen size and pixel ratio.
+
+      None of it is the CMS UI language or theme.
+    - Scripts load from the OCP CDN (`apps.global.ocp.optimizely.com/bundles/…`), plus one
+      inline script that the CMS's frame page adds.
   - **Containers are short-lived.** The container had started 85 s before the echo call
     (19:13:07). The 18:28 container was gone after about 45 minutes, so containers are recycled
     or scaled down quickly.
@@ -509,12 +533,24 @@ answered.
   passes it, and no longer polls `ocp directory status`. Confirmed with dev.11: prepare
   watched the build (NEW → QUEUED → BUILDING), then each region in turn (us, au, eu: BUILT →
   PUBLISHING → "has been published") before returning.
-- **`ocp app prepare` can fail with "Terminal is not capable"** when it isn't run in a real
-  interactive terminal (2026-10-23). Its progress spinner (terminal-kit) asks the terminal for
-  the cursor position, and that fails when the output is piped, for example from a tool or CI.
-  Setting `TERM` doesn't help. It failed after bumping `app.yml` and before uploading, so reset
-  the version (`git checkout -- app.yml`) before retrying. Run `yarn deploy` from your own
-  terminal. Earlier piped runs (dev.11, dev.12) did work, so it may depend on the host.
+- **`ocp app prepare` stops to ask when OCP dependencies are out of date.** When
+  `@zaiusinc/app-sdk` 3.5.2 came out, it asked whether to upgrade from 3.5.1 (2026-10-23).
+  Without an interactive terminal (a tool or CI), that prompt crashes with the misleading
+  **"Terminal is not capable"** (terminal-kit can't read the cursor position). The crash comes
+  after `app.yml` is bumped and before anything is uploaded, so reset the version before
+  retrying. Run `yarn deploy` from a terminal.
+- **Don't accept upgrades to brand-new OCP dependency versions.** Answering yes upgraded
+  `@zaiusinc/app-sdk` to 3.5.2, released that day. OCP's builder then failed (`BUILD_FAILED`)
+  with `YN0016: @zaiusinc/app-sdk@npm:3.5.2: All versions satisfying "3.5.2" are quarantined`.
+  The builder's Yarn refuses packages younger than its minimum age.
+  - **Declining doesn't work either:** with 3.5.1, `prepare` refuses to upload ("OCP apps always
+    build and run against the current versions of the SDKs. You must update your
+    dependencies"). The CLI compares the *installed* version (`yarn info`) with OCP's current
+    one, and requires an exact match.
+  - **So nobody can deploy until 3.5.2 is out of quarantine.** The CLI demands it and the
+    builder refuses it.
+  - 1.0.0-dev.13 is registered in OCP as `BUILD_FAILED`, so the next deploy becomes dev.14.
+    The refused attempt bumped `app.yml` to dev.14 locally; it was reset to dev.13.
 - **Publishing a dev version moves the dev install to it, with no upgrade command.** dev.11
   was published without `ocp directory upgrade`, and `list-installs` showed the install on
   dev.11 as soon as prepare returned. The extra upgrade was what made the hooks run twice.

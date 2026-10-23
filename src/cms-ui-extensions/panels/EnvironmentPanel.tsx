@@ -66,7 +66,16 @@ export function EnvironmentPanel() {
         {violations.length > 0 && <JsonView value={violations.map((entry) => entry.data)} />}
       </Section>
 
-      <Section title="Iframe environment" hint="Location, storage access, browser and display details as seen from inside the iframe.">
+      <Section
+        title="Iframe environment"
+        guide={{
+          why: 'Location, storage, permissions, browser and display details as seen from inside the iframe. It shows what an extension can and can\'t use, and what it can learn about the editor.',
+          expect: 'Origin "null", storage blocked, a short permissions-policy list, and the browser\'s own language, time zone and color scheme.',
+          report: 'The Copy button on the JSON.',
+          found:
+            'Allowed features: client hints, gamepad, picture-in-picture, sync-xhr, storage-access and a few more. No clipboard, camera, microphone, geolocation or fullscreen. Language, time zone and dark mode come from the browser and OS, not from the CMS.'
+        }}
+      >
         <Button
           onClick={() => {
             const next = collectEnvironment();
