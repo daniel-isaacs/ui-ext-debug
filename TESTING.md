@@ -87,25 +87,6 @@ Language, time zone and color scheme come from the browser, not the CMS.
 rows.~~ Done 2026-10-27: both blocked (`indexedDB.open()` is denied, `caches` is disabled
 without `allow-same-origin`). No browser storage works.
 
-## 5b. ~~Frame to frame (5 min, dev.15)~~
-
-Done 2026-10-27: `postMessage` through `window.top.frames` works between extension frames (7
-windows found, both editors replied within 13 ms, a saved value reached the sidebar in 5 ms).
-`BroadcastChannel` doesn't cross frames. Details in CLAUDE.md.
-
-Can extension frames talk to each other without the backend? Every entry listens for tagged
-`postMessage`s from other frames and on a `BroadcastChannel`, and answers pings.
-1. Open a page that shows one or more debug property editors, and open the sidebar.
-2. **Sidebar → Bridge → Frame to frame → Ping all frames.** Each extension frame that answers
-   shows as a `reply`, with its label (string editor, short string editor…).
-3. Change a value in a debug property editor (type and press Enter). The sidebar should get a
-   `property` message with the new value.
-4. Unfold a property editor, open its Bridge tab and click **Send note**. Check the sidebar and
-   the other editors.
-
-**Collect:** "Copy ping result" and "Copy messages" from the sidebar, plus which editors were on
-the page.
-
 ## 6. Content events, remaining cases (5 min)
 
 **Content → Content events** (Clear the Bridge traffic first):

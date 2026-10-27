@@ -71,24 +71,8 @@ the app as account-scoped (see the Unsplash repo's CLAUDE.md).
   unless the backend returns them.
 - **Reusing the editor's auth isn't documented.** The CMS API and Graph need the app's own keys.
 - **The backend can't push to an extension.** The extension polls (see the Inbox tab and kvStore).
-  The SDK gives extensions no way to talk to each other; they can share state through the
-  backend's kvStore. **But the browser lets extension frames message each other directly**
-  (dev.15, 2026-10-27, `common/crossFrame.ts`, Bridge → Frame to frame):
-  - From the sidebar, `window.top.frames` listed 7 windows, all direct children of the CMS page
-    (`top.frames[0]`–`[5]`, the sidebar being `[5]`). Reading `frames` and `postMessage` work
-    across origins; nothing else does.
-  - A ping posted to all 6 others got replies from both debug property editors (string and
-    short string) within 13 ms, via `event.source.postMessage`. The other 4 frames (the
-    preview and other CMS frames) ignored it.
-  - A value saved in the short string editor reached the sidebar as a `property` message 5 ms
-    later, and a note 16 ms later. So an editor can tell the sidebar about a change live,
-    which the CMS's own `content` events never do (they don't fire on edits).
-  - Every message arrives with `event.origin` `"null"`, since all extension frames are
-    sandboxed. The receiver can only identify the sender from the message itself.
-  - **`BroadcastChannel` carried nothing between frames:** each sandboxed frame has its own
-    opaque origin, so each frame's channel is separate.
-  - It needs no host support, so it's a browser behavior, not a CMS feature. It would break if
-    the CMS ever nested the frames differently or changed the sandbox.
+  The SDK gives extensions no way to talk to each other; they share state through the
+  backend's kvStore.
 - **`invokeFunction` limits:** the SDK times out every bridge call after 60 s, but the CMS gives
   up first, at about 59 s. The response limit is 4 MiB.
   - The SDK source suggested an exception thrown in `perform()` would arrive as
