@@ -71,10 +71,24 @@ the app as account-scoped (see the Unsplash repo's CLAUDE.md).
   unless the backend returns them.
 - **Reusing the editor's auth isn't documented.** The CMS API and Graph need the app's own keys.
 - **The backend can't push to an extension.** The extension polls (see the Inbox tab and kvStore).
-  The SDK gives extensions no way to talk to each other; they share state through the backend's
-  kvStore. Whether the browser lets frames message each other directly (`postMessage` through
-  `window.top.frames`, or `BroadcastChannel`) is tested from dev.15 (`common/crossFrame.ts`,
-  Bridge → Frame to frame).
+  The SDK gives extensions no way to talk to each other; they can share state through the
+  backend's kvStore. **But the browser lets extension frames message each other directly**
+  (dev.15, 2026-10-27, `common/crossFrame.ts`, Bridge → Frame to frame):
+  - From the sidebar, `window.top.frames` listed 7 windows, all direct children of the CMS page
+    (`top.frames[0]`–`[5]`, the sidebar being `[5]`). Reading `frames` and `postMessage` work
+    across origins; nothing else does.
+  - A ping posted to all 6 others got replies from both debug property editors (string and
+    short string) within 13 ms, via `event.source.postMessage`. The other 4 frames (the
+    preview and other CMS frames) ignored it.
+  - A value saved in the short string editor reached the sidebar as a `property` message 5 ms
+    later, and a note 16 ms later. So an editor can tell the sidebar about a change live,
+    which the CMS's own `content` events never do (they don't fire on edits).
+  - Every message arrives with `event.origin` `"null"`, since all extension frames are
+    sandboxed. The receiver can only identify the sender from the message itself.
+  - **`BroadcastChannel` carried nothing between frames:** each sandboxed frame has its own
+    opaque origin, so each frame's channel is separate.
+  - It needs no host support, so it's a browser behavior, not a CMS feature. It would break if
+    the CMS ever nested the frames differently or changed the sandbox.
 - **`invokeFunction` limits:** the SDK times out every bridge call after 60 s, but the CMS gives
   up first, at about 59 s. The response limit is 4 MiB.
   - The SDK source suggested an exception thrown in `perform()` would arrive as
@@ -95,8 +109,8 @@ the app as account-scoped (see the Unsplash repo's CLAUDE.md).
   extension's GUID and appears in the frame URL.
 - **Frame**: `<cms-origin>/api/cms/extensions/<app_id>/frame/<extension-id>`. The referrer is
   `<cms-origin>/ui/extensions`. The sandbox has no `allow-same-origin`, so the origin is `"null"`,
-  and `localStorage`, `sessionStorage` and cookies throw. `indexedDB` exists but is probably
-  unusable for the same reason.
+  and `localStorage`, `sessionStorage`, cookies, IndexedDB and the Cache API all throw
+  (IndexedDB and the Cache API confirmed on dev.15).
 - **CDN layout**: bundles are at
   `https://apps.global.ocp.optimizely.com/bundles/<app_id>/<version>/<Entry>.js`, with chunks under
   `shared/`. The icon is at `https://apps.global.ocp.optimizely.com/<app_id>/<version>/assets/icon.svg`.
@@ -392,10 +406,18 @@ the app as account-scoped (see the Unsplash repo's CLAUDE.md).
     UI for anything the editor should see.
   - **Iframe environment** (view, dev.12, 2026-10-23). What the browser allows inside an
     extension frame:
-    - **Origin `null`:** the sandbox has no `allow-same-origin`. Reading `window.top.location`
+    - **Origin `null`:** the sandbox has no `allow-same-origin`. Note that `location.origin`
+      still shows the CMS host, because it's taken from the URL; the frame's real origin
+      (`self.origin`, shown as `effectiveOrigin` from dev.16) is `"null"`, which is what the
+      storage and access errors are about. Reading `window.top.location`
       is blocked, `frameElement` is `null`, and `window.name` is `null`.
-    - **Storage:** `localStorage`, `sessionStorage` and cookies all throw. `indexedDB` exists,
-      but is most likely unusable for the same reason (untested). Use the backend's kvStore.
+    - **Storage:** `localStorage`, `sessionStorage` and cookies all throw. So do IndexedDB and
+      the Cache API (dev.15, 2026-10-27): `indexedDB` exists, but `indexedDB.open()` throws
+      "access to the Indexed Database API is denied in this context", and reading `caches`
+      throws "Cache storage is disabled because the context is sandboxed and lacks the
+      'allow-same-origin' flag". No browser storage works at all; use the backend's kvStore.
+      The rest of the sandbox tests gave the same results as on dev.10 (form submit, popups
+      and clipboard blocked, `fetch` to Graph 401 in 30 ms).
     - **Permissions policy:** only these features are allowed: client hints (`ch-*`),
       `gamepad`, `picture-in-picture`, `sync-xhr`, `storage-access`, `browsing-topics`,
       `interest-cohort`, private state tokens, `aria-notify`, `deferred-fetch-minimal` and
@@ -478,6 +500,18 @@ answered.
     happened after the dev.14 deploy, and possibly a CMS restart; which one caused it isn't
     known. Check the selection in Settings → Content Types after every deploy, and choose the
     editor again if it's gone.
+  - **It was lost again after the dev.15 deploy, and all five of our extension IDs had
+    changed.** The CMS console logs `[ExtensionRegistry] Registering extension '<id>'` for each
+    extension on load. Before the deploy (dev.14, 10:01) our IDs were `9f76114c…`, `9d5966fc…`,
+    `29c4a7c9…` (sidebar), `cfb20087…` and `74bfaa24…`; after it (dev.15, 10:37) they were
+    `581e3a41…`, `5b129b39…`, `ea81ea10…` (sidebar, from its frame URL), `32969a3a…` and
+    `d124c8f8…`. The other app's two
+    (`6c85d8de…`, `2a0b1bfa…`) stayed the same.
+  - **Working theory:** the content type stores the editor's extension ID, and a deploy that
+    gives the extensions new IDs drops the selection. Not every deploy changes the IDs (the
+    sidebar kept `8ae2c648…` from dev.3 to dev.4), which would explain why it isn't lost every
+    time. To confirm: before and after each deploy, note the IDs from that console line (or
+    Overview → definition `id`) and whether the selection survived.
 - **The CMS doesn't echo `property.set()` back to the editor.** After a successful `set()` the
   value is saved, and a page reload shows it, but no `subscribe()` event arrives. The editor has
   to update its own UI. `PropertyEditorShell` wraps `context.property.set` so every successful
@@ -605,7 +639,7 @@ answered.
   `data:` URLs, and the CMS CSP blocked all of them. Serving them as files from the build
   didn't work either: the OCP CDN answers 403 for them (see above). So `vite.ui.config.mjs`
   aliases the Fontsource `index.css` files to `common/empty.css`, and the UI renders in the
-  browser's fallback fonts. The earlier `common/fonts.ts` and the direct `@fontsource-variable/*`
+  browser's fallback fonts. Confirmed on dev.15: no font requests and no 403s in the console. The earlier `common/fonts.ts` and the direct `@fontsource-variable/*`
   dependencies were removed.
   - Loading the fonts from a public CDN would work (`font-src https:` allows any host, and
     jsDelivr has the same Fontsource files), but we chose not to depend on a third party.

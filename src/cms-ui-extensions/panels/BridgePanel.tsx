@@ -253,7 +253,9 @@ function CrossFrameSection() {
         ],
         expect:
           'postMessage reaches the other frames, since cross-origin postMessage is always allowed; the CMS\'s own frames (such as the preview) get the ping too and ignore it. BroadcastChannel probably stays silent, because every sandboxed frame has its own opaque origin.',
-        report: '"Copy messages" and "Copy ping result" from the sidebar, and say which editors were on the page.'
+        report: '"Copy messages" and "Copy ping result" from the sidebar, and say which editors were on the page.',
+        found:
+          'dev.15: postMessage works. The sidebar found 7 windows under the CMS page, both editors replied within 13 ms, and a saved value arrived 5 ms after set(). event.origin is "null" for all of them. BroadcastChannel carried nothing between frames.'
       }}
     >
       <Text fontSize="sm" color="fg.secondary">

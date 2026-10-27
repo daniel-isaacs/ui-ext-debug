@@ -39,7 +39,7 @@ export function PropertyEditorShell({context, kind}: {context: ExtensionContext;
       logGroup('editor property subscribe()', next);
       if (active) applyRef.current(next);
       // Tells the other extension frames, to test frame-to-frame messaging (Bridge tab).
-      broadcast('property', {text: `${kind} editor: subscribe()`, value: next.value});
+      broadcast('property', {text: 'subscribe()', value: next.value});
     });
     // The debugger below only mounts when unfolded, so the editor tells the CMS it's ready.
     void context.extension.setReady();
@@ -61,7 +61,7 @@ export function PropertyEditorShell({context, kind}: {context: ExtensionContext;
           const result = await property.set(value);
           if (result.success) {
             applyRef.current({...(stateRef.current ?? {readonly: false}), value} as PropertyState);
-            broadcast('property', {text: `${kind} editor: set()`, value});
+            broadcast('property', {text: 'set()', value});
           }
           return result;
         }

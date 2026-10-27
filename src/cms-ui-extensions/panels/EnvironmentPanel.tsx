@@ -31,10 +31,10 @@ export function EnvironmentPanel() {
         guide={{
           why: 'The extension runs in a sandboxed iframe. This finds out which browser features work there: forms, popups, clipboard, IndexedDB, the Cache API and direct calls to Graph.',
           steps: ['Click Run tests. A blank tab may open if popups are allowed; close it.'],
-          expect: 'Form submit blocked (no allow-forms). Popups and clipboard vary. IndexedDB and the Cache API are probably blocked by the opaque origin (untested before dev.15). fetch to Graph gets an HTTP answer (CSP allows https:).',
+          expect: 'Form submit blocked (no allow-forms). Popups and clipboard vary. IndexedDB and the Cache API blocked by the opaque origin. fetch to Graph gets an HTTP answer (CSP allows https:).',
           report: '"Copy results".',
           found:
-            'Blocked: localStorage, sessionStorage and cookies (no allow-same-origin), form submit, window.open and the Clipboard API (permissions policy; copying still works through execCommand). Allowed: fetch to Graph straight from the browser.'
+            'Blocked: localStorage, sessionStorage, cookies, IndexedDB and the Cache API (no allow-same-origin), form submit, window.open and the Clipboard API (permissions policy; copying still works through execCommand). Allowed: fetch to Graph straight from the browser.'
         }}
       >
         <Group gap="8" flexWrap="wrap">

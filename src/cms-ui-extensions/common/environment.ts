@@ -29,7 +29,9 @@ export function collectEnvironment() {
     loadedScripts,
     frame: {
       href: location.href,
+      // location.origin is the URL's origin; self.origin is the frame's real (sandboxed) origin.
       origin: location.origin,
+      effectiveOrigin: self.origin,
       ancestorOrigins: attempt(() => Array.from(location.ancestorOrigins ?? [])),
       referrer: document.referrer || null,
       windowName: window.name || null,

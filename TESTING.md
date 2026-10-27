@@ -18,7 +18,9 @@ DevTools closed, the content usually arrives. If it's `null`, navigate to anothe
 back before running content-related tests.
 
 **After every deploy,** check in Settings → Content Types that the debug editors are still
-chosen for the test properties. The selection was lost once (2026-10-27).
+chosen for the test properties. The selection was lost after dev.14 and dev.15. Also note the
+extension IDs from the CMS console (`[ExtensionRegistry] Registering extension '<id>'`)
+before and after the deploy: the theory is that the selection is lost only when the IDs change.
 
 Finished tests are ~~struck through~~. Their results are in CLAUDE.md.
 
@@ -81,10 +83,15 @@ API are blocked. Direct `fetch` to Graph works.
 short permissions-policy list (no clipboard, camera, microphone, geolocation or fullscreen).
 Language, time zone and color scheme come from the browser, not the CMS.
 
-**Iframe → Sandbox tests → Run tests** again on dev.15: the new IndexedDB and Cache API rows
-(write and read back). Collect "Copy results".
+~~**Iframe → Sandbox tests → Run tests** again on dev.15: the new IndexedDB and Cache API
+rows.~~ Done 2026-10-27: both blocked (`indexedDB.open()` is denied, `caches` is disabled
+without `allow-same-origin`). No browser storage works.
 
-## 5b. Frame to frame (5 min, dev.15)
+## 5b. ~~Frame to frame (5 min, dev.15)~~
+
+Done 2026-10-27: `postMessage` through `window.top.frames` works between extension frames (7
+windows found, both editors replied within 13 ms, a saved value reached the sidebar in 5 ms).
+`BroadcastChannel` doesn't cross frames. Details in CLAUDE.md.
 
 Can extension frames talk to each other without the backend? Every entry listens for tagged
 `postMessage`s from other frames and on a `BroadcastChannel`, and answers pings.
