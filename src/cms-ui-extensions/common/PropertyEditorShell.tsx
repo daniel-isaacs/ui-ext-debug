@@ -1,6 +1,7 @@
 import {Box, Button, Group, Input, Switch, Text} from '@optiaxiom/react';
 import type {ExtensionContext, PropertySetResult, PropertyState} from '@optimizely/cms-extensibility-sdk';
 import {useEffect, useMemo, useRef, useState} from 'react';
+import {broadcast} from './crossFrame';
 import {DebuggerApp} from './DebuggerApp';
 import {logGroup} from './log';
 
@@ -37,6 +38,8 @@ export function PropertyEditorShell({context, kind}: {context: ExtensionContext;
     const unsubscribe = context.property.subscribe((next) => {
       logGroup('editor property subscribe()', next);
       if (active) applyRef.current(next);
+      // Tells the other extension frames, to test frame-to-frame messaging (Bridge tab).
+      broadcast('property', {text: `${kind} editor: subscribe()`, value: next.value});
     });
     // The debugger below only mounts when unfolded, so the editor tells the CMS it's ready.
     void context.extension.setReady();
@@ -58,6 +61,7 @@ export function PropertyEditorShell({context, kind}: {context: ExtensionContext;
           const result = await property.set(value);
           if (result.success) {
             applyRef.current({...(stateRef.current ?? {readonly: false}), value} as PropertyState);
+            broadcast('property', {text: `${kind} editor: set()`, value});
           }
           return result;
         }

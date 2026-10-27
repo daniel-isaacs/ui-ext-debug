@@ -51,7 +51,8 @@ export default defineConfig({
     alias: [
       {find: '@shared', replacement: path.resolve(cwd, SHARED_ROOT)},
       // Axiom imports Fontsource's CSS, whose fonts would be inlined as data: URLs, and the CMS CSP
-      // (`font-src https:`) blocks those. common/fonts.ts declares the same families instead.
+      // (`font-src https:`) blocks those. The OCP CDN doesn't serve font files either (403), so
+      // the debugger ships no fonts and renders in the browser's fallback fonts.
       {
         find: /^@fontsource-variable\/[^/]+\/index\.css$/,
         replacement: path.resolve(cwd, UI_SRC_ROOT, 'common/empty.css')
@@ -62,9 +63,6 @@ export default defineConfig({
     outDir: path.resolve(cwd, UI_OUT_DIR),
     emptyOutDir: false,
     sourcemap: true,
-    // Never inline fonts: the CMS iframe CSP has `font-src https:`, which blocks data: URIs.
-    // They land as hashed files under dist/cms-ui-extensions/assets/ (see common/fonts.ts).
-    assetsInlineLimit: (filePath) => (/\.(woff2?|ttf|otf|eot)$/i.test(filePath) ? false : undefined),
     rollupOptions: {
       preserveEntrySignatures: 'strict',
       input: discoverEntries(),

@@ -71,7 +71,10 @@ the app as account-scoped (see the Unsplash repo's CLAUDE.md).
   unless the backend returns them.
 - **Reusing the editor's auth isn't documented.** The CMS API and Graph need the app's own keys.
 - **The backend can't push to an extension.** The extension polls (see the Inbox tab and kvStore).
-  Extensions also can't talk to each other directly. They share state through the backend's kvStore.
+  The SDK gives extensions no way to talk to each other; they share state through the backend's
+  kvStore. Whether the browser lets frames message each other directly (`postMessage` through
+  `window.top.frames`, or `BroadcastChannel`) is tested from dev.15 (`common/crossFrame.ts`,
+  Bridge → Frame to frame).
 - **`invokeFunction` limits:** the SDK times out every bridge call after 60 s, but the CMS gives
   up first, at about 59 s. The response limit is 4 MiB.
   - The SDK source suggested an exception thrown in `perform()` would arrive as
@@ -184,9 +187,23 @@ the app as account-scoped (see the Unsplash repo's CLAUDE.md).
     on dev.9: about 8 minutes of `null`, then two events about 3.5 s apart, with the original
     page last.
   - Opening the sidebar after *navigating* (not reloading) gives the content straight away.
+  - **It's a timing race in the CMS, not in the extension** (2026-10-27, dev.14). The same page
+    was reloaded twice with DevTools open:
+    - With "Disable cache" **on** (10:01): the sidebar got `get()` → `null` and a `null` event.
+      The CMS's own Opal chat logged `[OpalChat][ContextTracker] Context updated from global
+      state: null` and never got an update either, although the editor loaded the page (its
+      `contentdata/64_489` request ran).
+    - With "Disable cache" **off** (10:04): Opal chat logged the content (`key 38d57d…`,
+      version 489) before the extensions loaded, and the sidebar got the content from `get()`
+      and from the first event.
+    - Without DevTools open, reloads and language switches now show the content as well.
 
-  Extensions must handle `null` and should tell the user to reselect the content. Not reported
-  to the CMS team yet.
+    So the extensions read the CMS's global context state, the same one Opal chat reads. When
+    loading is slow (cold cache), that state stays `null` after the page has loaded. That fits
+    the earlier `null`s, from tests run with DevTools open. Property editors were unaffected in
+    both runs: `property.get` returned the value each time.
+
+  Extensions must handle `null` and should tell the user to reselect the content.
 - **The CMS doesn't remember an open sidebar across a reload.** After F5 the page came back with
   the sidebar closed.
 - **Locales share the content `key`, but each language has its own `version`.** The same key
@@ -238,8 +255,12 @@ the app as account-scoped (see the Unsplash repo's CLAUDE.md).
 - **The extension definition `id` changes when the CMS registers a new version.** The sidebar
   was `8ae2c648-…` on dev.3 and dev.4 and `58dccb44-…` on dev.5. Don't key stored state on it;
   use the app ID plus the entry point.
-- **The font fix works on the real CDN.** dev.5 has 0 CSP violations, so
-  `bundles/<app>/<version>/assets/` is served.
+- **The CDN serves only the `.js` files, so the fonts have never loaded.** Corrected
+  2026-10-27: dev.14's woff2 files under `bundles/<app>/<version>/assets/` return **403**,
+  and so do dev.12's, and the `.js.map` files. The bundles and `shared/*.js` return 200. The
+  "0 CSP violations" on dev.5 only meant the URLs weren't blocked, not that they loaded, so
+  the UI has been rendering in system fonts. (The app icon, at
+  `<app_id>/<version>/assets/icon.svg` without `bundles/`, is served.)
 - **Transport tests (dev.9, sidebar, 2026-10-20):**
   - **Echo:** the body arrives intact, including `æøå 🐞`, nested objects and arrays (425
     bytes, content type `null`).
@@ -450,8 +471,13 @@ answered.
   - **Short string:** the dropdown didn't appear in dev.7 or dev.8. By the evening of
     2026-10-20 (dev.10) it did, for both string types, though nothing in the app changed for it.
     Probably a CMS-side change or delay.
-  - **Boolean:** still no editor dropdown (dev.10), although `property_type: boolean` is
-    declared and valid.
+  - **Boolean:** no editor dropdown, although `property_type: boolean` is declared and valid.
+    Checked on dev.10 and again on dev.14 (2026-10-27). Open with the OCP team.
+  - **The chosen editor can be lost.** On 2026-10-27 the string property that had "Debug
+    String Editor" selected was back on the default editor, without anyone changing it. It
+    happened after the dev.14 deploy, and possibly a CMS restart; which one caused it isn't
+    known. Check the selection in Settings → Content Types after every deploy, and choose the
+    editor again if it's gone.
 - **The CMS doesn't echo `property.set()` back to the editor.** After a successful `set()` the
   value is saved, and a page reload shows it, but no `subscribe()` event arrives. The editor has
   to update its own UI. `PropertyEditorShell` wraps `context.property.set` so every successful
@@ -488,8 +514,17 @@ answered.
     - **The revert works.** Tested with `"Before"`, then `set(42)`: while the popup was open,
       our textbox was empty (our sync applied the "successful" non-string value). When the
       editor clicked OK, `"Before"` came back into the textbox, and a reload showed `"Before"`
-      as the stored value. So the CMS hands the reverted value back to the editor, either
-      through `subscribe()` or by remounting it; the Property events list would show which.
+      as the stored value.
+    - **The reverted value comes back as a `subscribe()` event, without a remount**
+      (2026-10-27, dev.14, Bridge traffic in the string editor). `set(42)` at 10:06:45.788
+      resolved `{success: true}` in 7 ms. About 3.4 s later, around when the popup was
+      dismissed, every `property` subscription on the port got `{value: "Wow!?!"}` (the SDK's
+      id 2 and the Property tab's id 5, 3 ms apart). There was no new `CMS_INIT`, so the frame
+      wasn't reloaded. An editor that listens to `subscribe()` shows the right value again
+      by itself.
+    - **A new `property` subscription gets the current value straight away,** like `content`
+      does. The SDK's subscription at load and the Property tab's, opened later, each got an
+      event within a few ms of subscribing. Closing the Property tab sent `CMS_UNSUBSCRIBE`.
     - **`subscribe()` did fire for `set(null)`,** once per write (the two `null` events at
       14:12:01 and 14:13:12 were two `null` writes), but not for `set("Value 2")`. So the echo
       is inconsistent: a cleared value comes back, a string value doesn't.
@@ -547,10 +582,10 @@ answered.
     build and run against the current versions of the SDKs. You must update your
     dependencies"). The CLI compares the *installed* version (`yarn info`) with OCP's current
     one, and requires an exact match.
-  - **So nobody can deploy until 3.5.2 is out of quarantine.** The CLI demands it and the
-    builder refuses it.
-  - 1.0.0-dev.13 is registered in OCP as `BUILD_FAILED`, so the next deploy becomes dev.14.
-    The refused attempt bumped `app.yml` to dev.14 locally; it was reset to dev.13.
+  - **So nobody could deploy until 3.5.2 was out of quarantine.** The CLI demanded it and the
+    builder refused it. The quarantine had lifted by 2026-10-27, and dev.14 (with 3.5.2)
+    deployed normally. If it happens again, wait a few days.
+  - 1.0.0-dev.13 is registered in OCP as `BUILD_FAILED`; dev.14 followed dev.12.
 - **Publishing a dev version moves the dev install to it, with no upgrade command.** dev.11
   was published without `ocp directory upgrade`, and `list-installs` showed the install on
   dev.11 as soon as prepare returned. The extra upgrade was what made the hooks run twice.
@@ -565,14 +600,17 @@ answered.
 - `storage.settings.get<T>` needs `T extends ValueHash`. `Record<string, unknown>` doesn't typecheck.
 - The UI build puts Axiom in one shared chunk of about 560 kB (`dist/cms-ui-extensions/shared/`).
   That's expected.
-- **Fonts must be served over `https:`, never inlined.** Axiom's `Box` imports
+- **The debugger ships no fonts** (from 2026-10-27, after dev.14). Axiom's `Box` imports
   `@optiaxiom/globals/fonts`, which pulls in Fontsource's CSS. Vite inlined those fonts as
-  `data:` URLs, and the CMS CSP blocked all of them. `vite.ui.config.mjs` now aliases the
-  Fontsource `index.css` files to `common/empty.css` and never inlines fonts.
-  `common/fonts.ts` (`installFonts()`, called in every entry) declares the same family names with
-  absolute CDN URLs from `?url` imports. Relative `url()` in JS-injected CSS resolves against the
-  CMS frame, not the CDN. Axiom's first-choice brand fonts (Die Grotesk B, VC Nudge) aren't
-  shipped, so Roboto is what renders.
+  `data:` URLs, and the CMS CSP blocked all of them. Serving them as files from the build
+  didn't work either: the OCP CDN answers 403 for them (see above). So `vite.ui.config.mjs`
+  aliases the Fontsource `index.css` files to `common/empty.css`, and the UI renders in the
+  browser's fallback fonts. The earlier `common/fonts.ts` and the direct `@fontsource-variable/*`
+  dependencies were removed.
+  - Loading the fonts from a public CDN would work (`font-src https:` allows any host, and
+    jsDelivr has the same Fontsource files), but we chose not to depend on a third party.
+    How an extension should get fonts that match the CMS UI is a question for the Axiom team
+    (FEEDBACK.md).
 - **Property editors need `ocp-cms-ui-extensions-sdk` 1.1.0 (beta), and an up-to-date OCP
   builder.** Stable 1.0.0 knows only `sidebar` and `view`. Until 2026-10-20 the production OCP
   builder lacked property-editor support. `ocp app prepare` then failed with `declares

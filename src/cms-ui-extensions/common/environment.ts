@@ -84,6 +84,54 @@ export function collectEnvironment() {
   };
 }
 
+/** Opens a database, writes a value, reads it back and deletes the database. */
+function testIndexedDb(): Promise<string> {
+  return new Promise((resolve) => {
+    const fail = (stage: string, error: unknown) =>
+      resolve(`blocked at ${stage}: ${error instanceof Error ? error.message : String(error ?? 'no error given')}`);
+    const timer = setTimeout(() => resolve('no answer within 3 s'), 3000);
+    const done = (result: string) => {
+      clearTimeout(timer);
+      resolve(result);
+    };
+    let request: IDBOpenDBRequest;
+    try {
+      request = indexedDB.open('uxd-test', 1);
+    } catch (error) {
+      clearTimeout(timer);
+      fail('open', error);
+      return;
+    }
+    request.onupgradeneeded = () => request.result.createObjectStore('items');
+    request.onerror = () => {
+      clearTimeout(timer);
+      fail('open', request.error);
+    };
+    request.onsuccess = () => {
+      const db = request.result;
+      try {
+        const tx = db.transaction('items', 'readwrite');
+        tx.objectStore('items').put('ok', 'probe');
+        const read = tx.objectStore('items').get('probe');
+        tx.oncomplete = () => {
+          db.close();
+          indexedDB.deleteDatabase('uxd-test');
+          done(read.result === 'ok' ? 'allowed: wrote and read back' : 'opened, but read back nothing');
+        };
+        tx.onerror = () => {
+          db.close();
+          clearTimeout(timer);
+          fail('write', tx.error);
+        };
+      } catch (error) {
+        db.close();
+        clearTimeout(timer);
+        fail('write', error);
+      }
+    };
+  });
+}
+
 export interface SandboxTest {
   name: string;
   result: string;
@@ -126,6 +174,20 @@ export async function runSandboxTests(graphEndpoint: string): Promise<SandboxTes
     results.push({name: 'Clipboard API', result: 'allowed'});
   } catch (error) {
     results.push({name: 'Clipboard API', result: `blocked: ${error instanceof Error ? error.message : String(error)}`});
+  }
+
+  // IndexedDB exists in the sandbox, but with an opaque origin opening a database may fail.
+  results.push({name: 'indexedDB', result: await testIndexedDb()});
+
+  // Cache API: also tied to the origin.
+  try {
+    const cache = await caches.open('uxd-test');
+    await cache.put('/uxd-test', new Response('ok'));
+    const read = await (await cache.match('/uxd-test'))?.text();
+    await caches.delete('uxd-test');
+    results.push({name: 'Cache API', result: read === 'ok' ? 'allowed: wrote and read back' : 'opened, but read back nothing'});
+  } catch (error) {
+    results.push({name: 'Cache API', result: `blocked: ${error instanceof Error ? error.message : String(error)}`});
   }
 
   // Network: can the browser reach Graph directly, or does CSP/CORS stop it?

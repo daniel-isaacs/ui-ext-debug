@@ -12,8 +12,13 @@ what earlier runs found. This file puts them in order and says what to collect.
 Add one line saying what you did in the CMS. Prefix it with the surface (sidebar or view) and
 the version shown in Overview.
 
-**Known CMS quirk.** After a full page reload (F5 or switching language), extensions get no
-content. Navigate to another item and back before running content-related tests.
+**Known CMS quirk.** After a slow full page reload (F5 or switching language), extensions get
+no content. It shows up with DevTools open and "Disable cache" on; with the cache on, or
+DevTools closed, the content usually arrives. If it's `null`, navigate to another item and
+back before running content-related tests.
+
+**After every deploy,** check in Settings → Content Types that the debug editors are still
+chosen for the test properties. The selection was lost once (2026-10-27).
 
 Finished tests are ~~struck through~~. Their results are in CLAUDE.md.
 
@@ -23,7 +28,8 @@ Finished tests are ~~struck through~~. Their results are in CLAUDE.md.
 2. **Overview → This extension:** "Frontend version" and "Backend version" must match. If
    they don't, wait a few minutes and reload. **Collect:** "Copy full dump" if they still
    differ, since that would be a CMS bug.
-3. **Iframe → CSP violations** should be 0, and the text should render in Roboto.
+3. **Iframe → CSP violations** should be 0. The text renders in the browser's fallback fonts:
+   the debugger ships no fonts (see CLAUDE.md).
 
 ## 1. Bridge: hidden host methods and events
 
@@ -75,6 +81,24 @@ API are blocked. Direct `fetch` to Graph works.
 short permissions-policy list (no clipboard, camera, microphone, geolocation or fullscreen).
 Language, time zone and color scheme come from the browser, not the CMS.
 
+**Iframe → Sandbox tests → Run tests** again on dev.15: the new IndexedDB and Cache API rows
+(write and read back). Collect "Copy results".
+
+## 5b. Frame to frame (5 min, dev.15)
+
+Can extension frames talk to each other without the backend? Every entry listens for tagged
+`postMessage`s from other frames and on a `BroadcastChannel`, and answers pings.
+1. Open a page that shows one or more debug property editors, and open the sidebar.
+2. **Sidebar → Bridge → Frame to frame → Ping all frames.** Each extension frame that answers
+   shows as a `reply`, with its label (string editor, short string editor…).
+3. Change a value in a debug property editor (type and press Enter). The sidebar should get a
+   `property` message with the new value.
+4. Unfold a property editor, open its Bridge tab and click **Send note**. Check the sidebar and
+   the other editors.
+
+**Collect:** "Copy ping result" and "Copy messages" from the sidebar, plus which editors were on
+the page.
+
 ## 6. Content events, remaining cases (5 min)
 
 **Content → Content events** (Clear the Bridge traffic first):
@@ -121,7 +145,8 @@ CLAUDE.md).
    strings and `null` succeed. `42` and `true` make the CMS show a "could not save, reverted"
    popup with a .NET error, yet `set()` returned `success: true` for both. The revert works:
    the previous value comes back when the popup is closed. `set(null)` was echoed through
-   `subscribe()`; `set("Value 2")` wasn't.
+   `subscribe()`; `set("Value 2")` wasn't. Rechecked 2026-10-27: the reverted value arrives
+   as a `property` event on every subscription, with no reload of the frame.
 5. ~~**Bridge** in the property editor: "Try 14 guessed methods".~~ Done 2026-10-23: the same
    three methods as the sidebar, and `property.get` is bound. Nothing names the property.
 

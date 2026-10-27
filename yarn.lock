@@ -336,13 +336,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@fontsource-variable/roboto-mono@npm:^5.2.9":
-  version: 5.3.0
-  resolution: "@fontsource-variable/roboto-mono@npm:5.3.0"
-  checksum: 10c0/dbb0234b3b637e2f145e693cad525c81371af26251fcf3cc9683931bda6b53e3c9c2680f89cf0c87c2a52723d01e873cf893982178b63a7afdd4c0a4ca929d61
-  languageName: node
-  linkType: hard
-
 "@fontsource-variable/roboto@npm:^5.2.10":
   version: 5.2.10
   resolution: "@fontsource-variable/roboto@npm:5.2.10"
@@ -2113,9 +2106,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@zaiusinc/app-sdk@npm:3.5.1":
-  version: 3.5.1
-  resolution: "@zaiusinc/app-sdk@npm:3.5.1"
+"@zaiusinc/app-sdk@npm:3.5.2":
+  version: 3.5.2
+  resolution: "@zaiusinc/app-sdk@npm:3.5.2"
   dependencies:
     "@zaiusinc/app-forms-schema": "npm:^2.0.0"
     ajv: "npm:^8.20.0"
@@ -2138,7 +2131,7 @@ __metadata:
     "@zaiusinc/node-sdk": ^3.0.0
   bin:
     ocp-app-sdk: dist/cli.js
-  checksum: 10c0/fb7d3cc1411adb308116216e9ec57a5a13ee52908f58df8f44abf0c4be1d869026252886fae3f6880c992f6526e7c46869ca359a7ce34d7c475ca21148c13e2f
+  checksum: 10c0/c32462f22a8caa87d0b428df7a92c0ecac067887f70bf43c011f499bcfaef35dc8898df2c8990a8d1799b6bc664dfd754de7e7dc31e7b39884abe05e5ce6ad76
   languageName: node
   linkType: hard
 
@@ -6171,9 +6164,6 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "ui_ext_debug@workspace:."
   dependencies:
-    "@fontsource-variable/roboto": "npm:^5.2.10"
-    "@fontsource-variable/roboto-condensed": "npm:^5.2.8"
-    "@fontsource-variable/roboto-mono": "npm:^5.2.9"
     "@optiaxiom/react": "npm:^3.0.0"
     "@optimizely/cms-extensibility-sdk": "npm:1.1.0"
     "@optimizely/ocp-cms-ui-extensions-sdk": "npm:1.1.0-beta.1"
@@ -6184,7 +6174,7 @@ __metadata:
     "@types/react-dom": "npm:^19.0.0"
     "@typescript-eslint/parser": "npm:^8.32.0"
     "@vitejs/plugin-react": "npm:^6.0.0"
-    "@zaiusinc/app-sdk": "npm:3.5.1"
+    "@zaiusinc/app-sdk": "npm:3.5.2"
     "@zaiusinc/eslint-config-presets": "npm:3.1.3"
     "@zaiusinc/node-sdk": "npm:3.0.0"
     copyfiles: "npm:^2.4.1"

@@ -29,9 +29,9 @@ export function EnvironmentPanel() {
       <Section
         title="Sandbox tests"
         guide={{
-          why: 'The extension runs in a sandboxed iframe. This finds out which browser features work there: forms, popups, clipboard and direct calls to Graph.',
+          why: 'The extension runs in a sandboxed iframe. This finds out which browser features work there: forms, popups, clipboard, IndexedDB, the Cache API and direct calls to Graph.',
           steps: ['Click Run tests. A blank tab may open if popups are allowed; close it.'],
-          expect: 'Form submit blocked (no allow-forms). Popups and clipboard vary. fetch to Graph gets an HTTP answer (CSP allows https:).',
+          expect: 'Form submit blocked (no allow-forms). Popups and clipboard vary. IndexedDB and the Cache API are probably blocked by the opaque origin (untested before dev.15). fetch to Graph gets an HTTP answer (CSP allows https:).',
           report: '"Copy results".',
           found:
             'Blocked: localStorage, sessionStorage and cookies (no allow-same-origin), form submit, window.open and the Clipboard API (permissions policy; copying still works through execCommand). Allowed: fetch to Graph straight from the browser.'
@@ -57,10 +57,10 @@ export function EnvironmentPanel() {
         title={`CSP violations (${violations.length})`}
         guide={{
           why: "The CMS sets a strict Content Security Policy on the iframe. Anything it blocks (fonts, scripts, images from other hosts) is listed here, since the extension can't see it fail otherwise.",
-          expect: 'None, now that the fonts load from the CDN (dev.4 and later).',
+          expect: 'None. The debugger ships no fonts, so nothing is blocked.',
           report: 'The list, if it isn\'t empty.',
           found:
-            'dev.3 had 22 font-src violations: fonts inlined as data: URLs, which the policy blocks. Fixed in dev.4 by serving them from the CDN; dev.5 has none.'
+            'dev.3 had 22 font-src violations: fonts inlined as data: URLs, which the policy blocks. Serving them as files from the build failed too (the OCP CDN answers 403), so from dev.15 the debugger ships no fonts and uses the browser\'s fallback fonts.'
         }}
       >
         {violations.length > 0 && <JsonView value={violations.map((entry) => entry.data)} />}

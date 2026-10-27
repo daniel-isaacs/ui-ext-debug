@@ -10,6 +10,15 @@ import {
   type BridgeEntry,
   type ProbeResult
 } from '../common/bridgeSpy';
+import {
+  broadcast,
+  clearCrossFrameRecords,
+  getCrossFrameInfo,
+  getCrossFrameRecords,
+  pingAllFrames,
+  subscribeCrossFrame,
+  type PingResult
+} from '../common/crossFrame';
 import {logGroup} from '../common/log';
 import {CopyButton, JsonView, Section} from '../common/ui';
 
@@ -184,6 +193,8 @@ export function BridgePanel() {
         ))}
       </Section>
 
+      <CrossFrameSection />
+
       <Section
         title={`Traffic (${entries.length})`}
         guide={{
@@ -220,5 +231,70 @@ export function BridgePanel() {
         ))}
       </Section>
     </Group>
+  );
+}
+
+function CrossFrameSection() {
+  const records = useSyncExternalStore(subscribeCrossFrame, getCrossFrameRecords);
+  const [ping, setPing] = useState<PingResult | null>(null);
+  const [note, setNote] = useState('Hello from another frame');
+  const info = getCrossFrameInfo();
+
+  return (
+    <Section
+      title={`Frame to frame (${records.length})`}
+      guide={{
+        why: 'Every extension frame has its own bridge, so the CMS gives frames no way to talk to each other. The browser may still allow it: postMessage to sibling frames found through window.top.frames, or a BroadcastChannel. If it works, a property editor can tell the sidebar about a change without the backend.',
+        steps: [
+          'Open a page with the sidebar open and one or more debug property editors visible. They answer even when folded.',
+          'In the sidebar, Bridge tab: click "Ping all frames". Each extension frame that answers shows a "reply" below.',
+          'Change a value in a debug property editor. The sidebar should get a "property" message.',
+          'Unfold a property editor, open its Bridge tab, and send a note to the others.'
+        ],
+        expect:
+          'postMessage reaches the other frames, since cross-origin postMessage is always allowed; the CMS\'s own frames (such as the preview) get the ping too and ignore it. BroadcastChannel probably stays silent, because every sandboxed frame has its own opaque origin.',
+        report: '"Copy messages" and "Copy ping result" from the sidebar, and say which editors were on the page.'
+      }}
+    >
+      <Text fontSize="sm" color="fg.secondary">
+        This frame: {info.label} ({info.frameId}). BroadcastChannel: {info.broadcastChannel}.
+      </Text>
+      <Group gap="8" flexWrap="wrap">
+        <Button
+          appearance="primary"
+          onClick={() => {
+            const result = pingAllFrames();
+            logGroup('cross-frame ping', result);
+            setPing(result);
+          }}
+        >
+          Ping all frames
+        </Button>
+        <Button onClick={clearCrossFrameRecords}>Clear</Button>
+        {ping && <CopyButton value={ping} label="Copy ping result" />}
+        <CopyButton value={records} label="Copy messages" />
+      </Group>
+      <Group gap="8">
+        <Input value={note} onChange={(event) => setNote(event.target.value)} placeholder="note" />
+        <Button onClick={() => broadcast('note', {text: note})}>Send note</Button>
+      </Group>
+      {ping && (
+        <Text fontSize="sm">
+          Found {ping.framesFound} windows on the page (this one is {ping.self ?? 'not found'}), posted to {ping.posted}
+          {ping.failed.length > 0 ? `, ${ping.failed.length} failed` : ''}.
+        </Text>
+      )}
+      {records.map((record, index) => (
+        <Group gap="8" key={`${record.receivedAt}-${index}`} alignItems="start" flexWrap="wrap">
+          <Badge intent={record.via === 'postMessage' ? 'success' : 'information'}>{record.via}</Badge>
+          <Badge intent="neutral">{record.kind}</Badge>
+          <Text fontSize="sm" style={{minWidth: 0, overflowWrap: 'anywhere'}}>
+            from {record.from.label} ({record.from.frameId}) at {record.receivedAt.slice(11, 23)}
+            {record.text ? `: ${record.text}` : ''}
+            {record.value !== undefined ? ` = ${JSON.stringify(record.value)}` : ''}
+          </Text>
+        </Group>
+      ))}
+    </Section>
   );
 }

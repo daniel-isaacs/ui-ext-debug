@@ -13,15 +13,12 @@
     "deploy": "node scripts/deploy.mjs"
   },
   "dependencies": {
-    "@fontsource-variable/roboto": "^5.2.10",
-    "@fontsource-variable/roboto-condensed": "^5.2.8",
-    "@fontsource-variable/roboto-mono": "^5.2.9",
     "@optiaxiom/react": "^3.0.0",
     "@optimizely/cms-extensibility-sdk": "1.1.0",
     "@optimizely/ocp-cms-ui-extensions-sdk": "1.1.0-beta.1",
     "@tanstack/react-table": "^8.13.0",
     "@tanstack/table-core": "^8.13.0",
-    "@zaiusinc/app-sdk": "3.5.1",
+    "@zaiusinc/app-sdk": "3.5.2",
     "@zaiusinc/node-sdk": "3.0.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
