@@ -2,6 +2,7 @@ import * as App from '@zaiusinc/app-sdk';
 import {functions, getAppContext, logger, notifications, storage} from '@zaiusinc/app-sdk';
 import {MAX_PAYLOAD_KB, MAX_SLEEP_MS} from '@shared/constants';
 import {ACTIONS, Action, Envelope, EnvelopeMeta, GraphAuth, RequestBody} from '@shared/protocol';
+import {aeoClear, aeoGet, aeoPut} from '../lib/aeo';
 import {cmsRequest, getCmsToken} from '../lib/cmsApi';
 import {graphQuery} from '../lib/graph';
 import {ConfigError} from '../lib/http';
@@ -142,6 +143,23 @@ export class DebugBackend extends App.Function {
 
       case 'probeForwardedAuth':
         return this.ok(await this.probeForwardedAuth());
+
+      case 'aeoGet':
+        return this.ok(await aeoGet(str(params.key), str(params.locale)));
+
+      case 'aeoPut':
+        return this.ok(
+          await aeoPut({
+            key: str(params.key),
+            locale: str(params.locale),
+            version: str(params.version) || null,
+            publicUrl: str(params.publicUrl),
+            report: params.report ?? null
+          })
+        );
+
+      case 'aeoClear':
+        return this.ok(await aeoClear(str(params.key), str(params.locale)));
     }
   }
 

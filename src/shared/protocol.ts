@@ -19,7 +19,10 @@ export const ACTIONS = [
   'cmsToken',
   'cmsRequest',
   'graphQuery',
-  'probeForwardedAuth'
+  'probeForwardedAuth',
+  'aeoGet',
+  'aeoPut',
+  'aeoClear'
 ] as const;
 
 export type Action = (typeof ACTIONS)[number];
@@ -74,4 +77,26 @@ export interface LifecycleEntry {
   hook: string;
   detail?: string;
   context?: unknown;
+}
+
+/** An AEO analysis kept in kvStore, one per content key and locale. */
+export interface AeoRecord<R = unknown> {
+  key: string;
+  locale: string;
+  /** The version the editor had open when the analysis ran. */
+  version: string | null;
+  publicUrl: string;
+  analysedAt: string;
+  report: R;
+}
+
+export interface AeoStatus<R = unknown> {
+  /** From Graph (app key): true if any version is Published. null when Graph couldn't tell. */
+  published: boolean | null;
+  publishedCheck: string;
+  /** From Graph, for this locale. null when Graph couldn't tell. */
+  displayName: string | null;
+  /** The content type's key, e.g. "ArticlePage". */
+  contentType: string | null;
+  record: AeoRecord<R> | null;
 }

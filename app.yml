@@ -1,7 +1,7 @@
 meta:
   app_id: steve_ui_ext_debug
   display_name: UI Extension Debugger (Steve)
-  version: 1.0.0-dev.16
+  version: 1.0.0-dev.21
   vendor: optimizely
   summary: Shows everything a CMS UI extension can see, in every injection point, from the frontend and the backend.
   support_url: https://support.optimizely.com
@@ -27,6 +27,9 @@ ui_extensions:
     - name: debug-sidebar
       entry_point: DebugSidebar
       display_name: UI Extension Debugger
+    - name: aeo-readiness
+      entry_point: AeoReadiness
+      display_name: AEO Readiness
   view:
     - name: debug-view
       entry_point: DebugView
@@ -48,3 +51,10 @@ ui_extensions:
       display_name: Debug Boolean Editor
       metadata:
         property_type: boolean
+    - name: map-editor
+      entry_point: MapEditor
+      display_name: Map Reference (mockup)
+      # `json` isn't an allowed property_type in ocp-cms-ui-extensions-sdk 1.1.0-beta.1 (string,
+      # richtext, integer, float, boolean), so the value is stored as JSON text in a long string.
+      metadata:
+        property_type: string

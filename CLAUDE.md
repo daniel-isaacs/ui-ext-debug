@@ -13,6 +13,40 @@ see and do. Every injection point renders the same debugger (`src/cms-ui-extensi
 
 The property editors show a working editor first and the debugger underneath, folded.
 
+`AeoReadiness` (`src/cms-ui-extensions/aeo/`, sidebar "AEO Readiness") is a mockup too: an AEO
+readiness report for the open page, with fake data seeded from the content key
+(`aeo/mockReport.ts`). The real scores will probably come from Optimizely Mark. It has its own
+tokens in `aeo/aeo.css` (no Axiom theme, light only, system fonts) and is laid out for a 300 px
+sidebar; only the PageSpeed pair adds a column as it widens.
+- It analyses only on a button press. The mock steps through `ANALYSIS_STEPS` (5 s each), then
+  stores the report in kvStore with `aeoPut` (key `aeo_<contentKey>_<locale>`). `aeoGet` loads it
+  on the next visit, and `aeoClear` deletes it ("Clear result").
+- `aeoGet` also asks Graph (app key) for the page's versions: whether any is Published, plus the
+  display name and content type. Without Graph settings all three are unknown; the panel then
+  treats the page as published and names it from the URL's last segment.
+- **Still to build: the real analysis job.** It mustn't be one `invokeFunction` call (the CMS cuts
+  calls at about 59 s, and a cold start has taken 29 s). Start a job, write progress to kvStore,
+  and let the panel poll it for the step states. Then remove Cancel: the job keeps running after
+  the client gives up, so a cancel button would mislead. The job must catch everything and return
+  a specific reason plus a per-check list (passed, failed, skipped) for the error screen; a
+  transport failure gets the generic "didn't respond" message and no list.
+
+`MapEditor` (`src/cms-ui-extensions/map/`, "Map Reference (mockup)", long string) is not a
+debugger. It's a map-reference editor mockup: a sketch map, mock search, and a picker that
+replaces the compact view in place. It has no debugger (the frame is too short); it logs
+`property.get`, `subscribe`, `set` and the frame size to the console under `[UXD]`.
+- **A property editor frame is at most 150 px tall and can be as narrow as 280 px** (dev.17,
+  2026-10-27). We design for 400 px wide, since editors rarely go narrower. Everything is one
+  row (map left, details and buttons right) that fills `100vh` without scrolling.
+- **No editor for `json` properties yet.** `ocp-cms-ui-extensions-sdk` 1.1.0-beta.1 only allows
+  `property_type` `string` (format none or `shortstring`), `richtext`, `integer`, `float` and
+  `boolean`; validate rejects `json`, and the SDK notes the CMS skips unsupported combinations.
+  So the map editor stores its value as JSON text in a long string. `MapEditor`'s `storage`
+  prop (`'string'` or `'object'`) is ready for a `json` type when it's allowed.
+- **A dialog can't leave the iframe.** `showModal()` uses the frame's own top layer, popups are
+  blocked, fullscreen isn't allowed, and the bridge has no dialog or resize method. In a
+  property editor a "popup" gets the same 150 px, so the picker is an in-place mode instead.
+
 Backend:
 - `debug_backend` (`src/backend/functions/DebugBackend.ts`, `accepts: cms_ui_extension`) handles
   every action listed in `src/shared/protocol.ts`.
